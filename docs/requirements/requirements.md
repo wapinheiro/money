@@ -131,22 +131,24 @@ The app should act as an agent that attempts to guess the user's intent based on
 +-------+---+---+---+---+
 ```
 
-**Mode C: The "Dual Arc" (Radial Layout)**
-*(Keys organized into two concentric semicircles to keep everything in the Green Zone)*
+**Mode C: The "Action Wheel" (Final Decision)**
+*(Validated via POC. A split-screen UI with a massive circular controller)*
+-   **Top Zone (Display)**: Passive "Billboard" showing Amount, Merchant, Category.
+-   **Bottom Zone (The Wheel)**: A 360° circular controller.
+    -   **State 1 (Numpad)**: 11 Wedges (0-9, Del). User taps wedges to enter amount. Implicit decimal formatting.
+    -   **State 2 (Spinner)**: Wheel becomes an "iPod-style" spinner to rotate through lists (Merchants, Categories).
+    -   **Center Hub**: Context-aware button (SAVE / OK).
+
 ```text
-           (Groceries)
-        (Dining)
-     (Gas)
-
-      (Outer Arc: Reach)
-     [ 4 ] [ 5 ] [ 6 ] [ 7 ] [ 8 ] [ 9 ]
-
-      (Inner Arc: Comfort)
-       [ 1 ] [ 2 ] [ 3 ] [ 0 ] [ . ]
+       [  $ 4 5 . 0 0  ]  <-- Details Area (Passive)
        
-                    (SAVE)      <--- Thumb Pivot
+           (   ^   )
+        (      |      )
+      (    ( SAVE )     )  <-- The Wheel (Active)
+        (      |      )
+           (   v   )
 ```
-*Note: This flattens the vertical reach. The thumb only needs to toggle between two extremely close "rows" (arcs), sweeping left-to-right rather than reaching up-and-down.*
+*Note: This replaces the "Dual Arc". It solves the "Reach" problem by keeping the thumb in a fixed circular zone while the UI brings options to the thumb.*
 
 **Screen 2: The "Toast" (Immediate Review - Walking to Car)**
 ```text

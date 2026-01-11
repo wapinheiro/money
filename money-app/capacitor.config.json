@@ -1,0 +1,5 @@
+{
+  "appId": "io.money.app",
+  "appName": "Money",
+  "webDir": "dist"
+}
