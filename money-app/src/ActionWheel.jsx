@@ -1,7 +1,20 @@
 import { useState, useRef, useEffect } from 'react'
 import './ActionWheel.css'
+import { Haptics, ImpactStyle } from '@capacitor/haptics'
 
-// The 11 keys on the wheel (0-9 + Del). We removed '.'
+// ... existing imports ...
+
+// ... inside component ...
+
+// Haptics
+const vibrate = async () => {
+    try {
+        await Haptics.impact({ style: ImpactStyle.Light })
+    } catch (e) {
+        // Fallback for web dev
+        if (navigator.vibrate) navigator.vibrate(15)
+    }
+}
 const NUMPAD_ITEMS = [
     { label: '0', value: '0' },
     { label: '1', value: '1' },
@@ -44,25 +57,33 @@ export default function ActionWheel({ onInput, onSave, mode = 'numpad', onSpinCh
     }
 
     // --- TOUCH HANDLERS FOR SPINNER ---
+    // --- TOUCH HANDLERS FOR SPINNER ---
+    const dragDistance = useRef(0)
+
     const handleStart = (e) => {
-        if (mode !== 'spinner') return
         setIsDragging(true)
+        dragDistance.current = 0
         velocity.current = 0
         // Stop any inertial movement
         if (rafId.current) cancelAnimationFrame(rafId.current)
 
         const touch = e.touches ? e.touches[0] : e
         const rect = e.currentTarget.getBoundingClientRect()
+        // Capture initial angle relative to current rotation
         lastAngle.current = getAngle(touch.clientX, touch.clientY, rect) - rotation
     }
 
     const handleMove = (e) => {
-        if (!isDragging || mode !== 'spinner') return
+        if (!isDragging) return
         const touch = e.touches ? e.touches[0] : e
         const rect = e.currentTarget.getBoundingClientRect()
         const currentAngle = getAngle(touch.clientX, touch.clientY, rect)
 
         const newRotation = currentAngle - lastAngle.current
+
+        // Track total movement for click safety
+        const delta = Math.abs(newRotation - rotation)
+        dragDistance.current += delta
 
         // Calculate simple instantaneous velocity
         velocity.current = newRotation - rotation
@@ -74,7 +95,6 @@ export default function ActionWheel({ onInput, onSave, mode = 'numpad', onSpinCh
     }
 
     const handleEnd = () => {
-        if (mode !== 'spinner') return
         setIsDragging(false)
         // Start Inertia loop
         requestAnimationFrame(inertiaLoop)
@@ -96,7 +116,11 @@ export default function ActionWheel({ onInput, onSave, mode = 'numpad', onSpinCh
 
     // --- CLICK HANDLER FOR NUMPAD ---
     const handleWedgeClick = (item) => {
-        if (mode === 'spinner') return
+        // Safety: If we dragged more than a few degrees, treat as spin, not click
+        if (Math.abs(dragDistance.current) > 5) return
+
+        if (mode === 'spinner') return // Generic spinner doesn't input values yet
+
         vibrate()
         onInput(item.value)
     }
@@ -112,7 +136,7 @@ export default function ActionWheel({ onInput, onSave, mode = 'numpad', onSpinCh
             onMouseMove={handleMove}
             onMouseUp={handleEnd}
             onMouseLeave={handleEnd}
-            style={{ transform: `rotate(${mode === 'spinner' ? rotation : 0}deg)` }}
+            style={{ transform: `rotate(${rotation}deg)` }}
         >
             {/* RENDER WEDGES */}
             {NUMPAD_ITEMS.map((item, index) => {
@@ -132,7 +156,8 @@ export default function ActionWheel({ onInput, onSave, mode = 'numpad', onSpinCh
                             className="wedge-content-touch-target"
                             onClick={() => handleWedgeClick(item)}
                         >
-                            <div className="wedge-content" style={{ transform: `rotate(${-angle}deg)` }}>
+                            {/* GYRO TEXT: Rotate Negative (Angle + ContainerRotation) to keep upright */}
+                            <div className="wedge-content" style={{ transform: `rotate(${-angle - rotation}deg)` }}>
                                 {item.label}
                             </div>
                         </div>
