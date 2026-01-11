@@ -60,15 +60,17 @@
     position: absolute;
     top: 0;
     left: 50%;
-    /* GEOMETRY: 11 items. 360/11 = ~32.7deg. 
+    /* GEOMETRY: 11 items. 360/11 = ~32.7deg.
        Tan(16.35) * 160px * 2 = ~94px circumference.
        Set to 92px to leave a 2px "Blue Line" gap. */
-    width: 92px;
+    /* DYNAMIC WIDTH NOW HANDLED IN JS */
+    /* width: 92px; */
     height: 160px;
     /* Radius */
 
     transform-origin: bottom center;
-    margin-left: -46px;
+    /* DYNAMIC MARGIN NOW HANDLED IN JS */
+    /* margin-left: -46px; */
     /* Half of width */
 
     pointer-events: none;
@@ -189,4 +191,41 @@
 
 .center-btn:active {
     transform: translate(-50%, -50%) scale(0.95);
+}
+
+/* --- CONTEXT MODE (3 Items) --- */
+.context-wedge {
+    /* 3 Items = 120 degrees each */
+    /* Triangles are tricky here. Let's make them look like "Bubbles" or " Cards" */
+
+    /* Override standard wedge geometry */
+    width: 260px;
+    /* Much wider chord calculation for 120deg? */
+    /* Actually for 120deg, we probably want to just visually represent them as sectors */
+    /* Let's try to reuse the wedge-shape but change color */
+
+    margin-left: -130px;
+    /* Center it */
+}
+
+.context-wedge .wedge-shape {
+    background: rgba(0, 200, 255, 0.8);
+    /* Cyan for Context */
+    /* The Triangle Clip Path scales automatically with width/height */
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.context-wedge .wedge-content {
+    font-size: 20px;
+    /* Smaller font for words */
+    top: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.wedge-sublabel {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-top: 5px;
 }

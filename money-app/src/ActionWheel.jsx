@@ -15,25 +15,9 @@ const vibrate = async () => {
         if (navigator.vibrate) navigator.vibrate(15)
     }
 }
-const NUMPAD_ITEMS = [
-    { label: '0', value: '0' },
-    { label: '1', value: '1' },
-    { label: '2', value: '2' },
-    { label: '3', value: '3' },
-    { label: '4', value: '4' },
-    { label: '5', value: '5' },
-    { label: '6', value: '6' },
-    { label: '7', value: '7' },
-    { label: '8', value: '8' },
-    { label: '9', value: '9' },
-    { label: '⌫', value: 'del' },
-]
+// ... existing imports ...
 
-// ... (Rest of code remains similar, but wedge drawing needs update)
-
-// ...
-
-export default function ActionWheel({ onInput, onSave, mode = 'numpad', onSpinChange }) {
+export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpad', onSpinChange }) {
     // ... (State and handlers remain the same) ...
     // State for Spin Physics
     const [rotation, setRotation] = useState(0)
@@ -114,16 +98,25 @@ export default function ActionWheel({ onInput, onSave, mode = 'numpad', onSpinCh
         rafId.current = requestAnimationFrame(inertiaLoop)
     }
 
-    // --- CLICK HANDLER FOR NUMPAD ---
+    // --- CLICK HANDLER ---
     const handleWedgeClick = (item) => {
         // Safety: If we dragged more than a few degrees, treat as spin, not click
         if (Math.abs(dragDistance.current) > 5) return
 
-        if (mode === 'spinner') return // Generic spinner doesn't input values yet
-
+        // Context Mode: Tap triggers specific action (e.g. edit)
+        // Numpad Mode: Tap inputs value
         vibrate()
-        onInput(item.value)
+        onInput(item)
     }
+
+    // Dynamic Geometry
+    const itemCount = items.length
+    const sliceAngle = 360 / itemCount
+    const radius = 160 // Matches CSS
+    // Tangent Formula: 2 * R * tan(theta/2)
+    // We subtract a small "gap" (e.g. 2px) to let the background show through as a separator line.
+    const gap = 2
+    const wedgeWidth = (2 * radius * Math.tan((sliceAngle / 2) * (Math.PI / 180))) - gap
 
     return (
         <div
@@ -131,7 +124,7 @@ export default function ActionWheel({ onInput, onSave, mode = 'numpad', onSpinCh
             onTouchStart={handleStart}
             onTouchMove={handleMove}
             onTouchEnd={handleEnd}
-            // Mouse events for testing on desktop
+            // Mouse events
             onMouseDown={handleStart}
             onMouseMove={handleMove}
             onMouseUp={handleEnd}
@@ -139,34 +132,35 @@ export default function ActionWheel({ onInput, onSave, mode = 'numpad', onSpinCh
             style={{ transform: `rotate(${rotation}deg)` }}
         >
             {/* RENDER WEDGES */}
-            {NUMPAD_ITEMS.map((item, index) => {
-                // 11 items = 32.7deg per slice
-                const angle = index * (360 / 11)
+            {items.map((item, index) => {
+                const angle = index * sliceAngle
                 return (
                     <div
-                        key={item.label}
-                        className="wedge"
-                        style={{ transform: `rotate(${angle}deg)` }}
+                        key={item.label || item.value}
+                        className={`wedge ${mode}-wedge`}
+                        style={{
+                            transform: `rotate(${angle}deg)`,
+                            width: `${wedgeWidth}px`,
+                            marginLeft: `${-wedgeWidth / 2}px`
+                        }}
                     >
-                        {/* 1) The Yellow Cone (Background Shape) */}
+                        {/* 1) The Background Shape */}
                         <div className="wedge-shape"></div>
 
-                        {/* 2) The Text (Content) */}
+                        {/* 2) The Content */}
                         <div
                             className="wedge-content-touch-target"
                             onClick={() => handleWedgeClick(item)}
                         >
-                            {/* GYRO TEXT: Rotate Negative (Angle + ContainerRotation) to keep upright */}
+                            {/* GYRO TEXT: Counter-rotate to keep upright */}
                             <div className="wedge-content" style={{ transform: `rotate(${-angle - rotation}deg)` }}>
                                 {item.label}
+                                {item.subLabel && <div className="wedge-sublabel">{item.subLabel}</div>}
                             </div>
                         </div>
                     </div>
                 )
             })}
-
-            {/* CENTER BUTTON (Static overlay, does not spin with container in CSS usually, but here simplicity) */}
-            {/* We actually need the Center Button OUTSIDE the spinning container if the container spins */}
         </div>
     )
 }
