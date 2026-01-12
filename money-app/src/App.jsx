@@ -100,12 +100,33 @@ function App() {
     // Pick first account or random
     const predictedAccount = allAccounts.length > 0
       ? allAccounts[Math.floor(Math.random() * allAccounts.length)]
-      : { name: 'Cash' }
+      : { name: 'Cash', color: '#666' }
 
     return [
-      { label: randomMerchant.name, value: 'merchant', subLabel: 'Merchant' },
-      { label: associatedCategory?.name || 'Uncategorized', value: 'category', subLabel: 'Category' },
-      { label: predictedAccount.name, value: 'account', subLabel: 'Account' }
+      {
+        label: randomMerchant.name,
+        value: 'merchant',
+        subLabel: 'Merchant',
+        // Rich Data
+        logo: randomMerchant.logo,
+        color: randomMerchant.color,
+        meta: randomMerchant
+      },
+      {
+        label: associatedCategory?.name || 'Uncategorized',
+        value: 'category',
+        subLabel: 'Category',
+        logo: associatedCategory?.icon,
+        color: associatedCategory?.color,
+        meta: associatedCategory
+      },
+      {
+        label: predictedAccount.name,
+        value: 'account',
+        subLabel: 'Account',
+        color: predictedAccount.color,
+        meta: predictedAccount
+      }
     ]
   }
 
@@ -130,13 +151,11 @@ function App() {
       // Update Context Items
       const newContext = contextItems.map(item => {
         if (item.value === editTarget) {
-          return { ...item, label: selectedOption.name }
+          return { ...item, label: selectedOption.name, logo: selectedOption.logo || selectedOption.icon, color: selectedOption.color, meta: selectedOption }
         }
         return item
       })
       setContextItems(newContext)
-
-      // Return to Context Mode
       setMode('context')
       setEditTarget(null)
       setStatusMsg('Updated')
@@ -176,7 +195,7 @@ function App() {
     <div className="app-container">
       {/* DETAILS AREA */}
       <div className="display-area">
-        <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '10px' }}>v1.27 Edit Mode</div>
+        <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '10px' }}>v1.29 Date Added</div>
 
         {mode === 'numpad' && (
           <div className="readout">
@@ -188,10 +207,33 @@ function App() {
         {mode === 'context' && (
           <div className="summary-card">
             <div className="summary-amount">${amount}</div>
+
+            {/* DATE ROW */}
+            <div className="summary-row">
+              <span className="summary-label">Date</span>
+              <span className="summary-value" style={{ color: 'white' }}>
+                {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+              <span style={{ width: '15px' }}></span>
+            </div>
+
             {contextItems.map((item, i) => (
               <div className="summary-row" key={i} onClick={() => handleDigit(item)}>
                 <span className="summary-label">{item.subLabel}</span>
-                <span className="summary-value">{item.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {/* LOGO BUBBLE */}
+                  {item.color && (
+                    <div style={{
+                      width: '12px', height: '12px',
+                      borderRadius: '50%',
+                      backgroundColor: item.color,
+                      boxShadow: '0 0 5px ' + item.color
+                    }}></div>
+                  )}
+                  <span className="summary-value" style={{ color: item.color || 'white' }}>
+                    {item.logo} {item.label}
+                  </span>
+                </div>
                 <span style={{ color: '#666' }}> › </span>
               </div>
             ))}
@@ -208,22 +250,29 @@ function App() {
               const transform = `translate(-50%, -50%) translateY(${offset * 60}px) scale(${1 - Math.abs(offset) * 0.2})`
               const opacity = 1 - Math.abs(offset) * 0.5
 
+              const bgColor = opt.color || '#333'
+
               return (
                 <div key={i} style={{
                   position: 'absolute',
                   top: '50%', left: '50%',
                   transform: transform,
                   opacity: opacity,
-                  background: '#333',
+                  background: offset === 0 ? bgColor : '#333',
+                  color: 'white',
                   padding: '20px',
                   minWidth: '200px',
                   textAlign: 'center',
                   borderRadius: '12px',
                   border: offset === 0 ? '2px solid #4CAF50' : '1px solid #555',
                   transition: 'all 0.2s ease-out',
-                  zIndex: 10 - Math.abs(offset)
+                  zIndex: 10 - Math.abs(offset),
+                  boxShadow: offset === 0 ? `0 10px 30px ${bgColor}66` : 'none'
                 }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '20px' }}>{opt.name}</div>
+                  <div style={{ fontSize: '32px', marginBottom: '5px' }}>{opt.logo || opt.icon}</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '20px', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                    {opt.name}
+                  </div>
                 </div>
               )
             })}
