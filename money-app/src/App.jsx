@@ -195,7 +195,7 @@ function App() {
     <div className="app-container">
       {/* DETAILS AREA */}
       <div className="display-area">
-        <div style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>v1.35 Native Scroll Fix</div>
+        <div style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>v1.37 Snappy Wheel</div>
 
         {mode === 'numpad' && (
           <div className="readout">

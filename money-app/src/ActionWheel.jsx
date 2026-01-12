@@ -23,11 +23,15 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
     const dragDistanceRef = useRef(0)
     const tickAccumulatorRef = useRef(0)
 
+    // CALLBACK REF (Avoid Stale Closures with Native Listeners)
+    const onSpinChangeRef = useRef(onSpinChange)
+    useEffect(() => { onSpinChangeRef.current = onSpinChange }, [onSpinChange])
+
     // REACT STATE (For Rendering)
     const [renderRotation, setRenderRotation] = useState(0)
 
     // CONSTANTS
-    const TICK_THRESHOLD = 45
+    const TICK_THRESHOLD = 15 // REDUCED: 15 degrees = ~4cm drag. Much snappier.
 
     // Helper: Get Angle
     const getAngle = (clientX, clientY, rect) => {
@@ -40,7 +44,6 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
 
     // --- LISTENER LOGIC ---
     const onTouchStart = (e) => {
-        // e.preventDefault() // Optional here
         isDraggingRef.current = true
         dragDistanceRef.current = 0
         velocityRef.current = 0
@@ -49,14 +52,12 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
         const touch = e.touches ? e.touches[0] : e
         const rect = containerRef.current.getBoundingClientRect()
 
-        // Calculate offset
         lastAngleRef.current = getAngle(touch.clientX, touch.clientY, rect) - rotationRef.current
         tickAccumulatorRef.current = 0
     }
 
     const onTouchMove = (e) => {
-        // CRITICAL: Prevent Browser Scroll
-        if (e.cancelable) e.preventDefault()
+        if (e.cancelable) e.preventDefault() // Stop Scroll
 
         if (!isDraggingRef.current) return
 
@@ -66,21 +67,19 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
 
         const newRotation = currentAngle - lastAngleRef.current
 
-        // Metrics
         const diff = newRotation - rotationRef.current
         dragDistanceRef.current += Math.abs(diff)
         velocityRef.current = diff
 
-        // Update State
         rotationRef.current = newRotation
-        setRenderRotation(newRotation) // Trigger Render
+        setRenderRotation(newRotation)
 
         // Tick Logic
-        if (mode === 'edit' && onSpinChange) {
+        if (mode === 'edit' && onSpinChangeRef.current) {
             tickAccumulatorRef.current += diff
             if (Math.abs(tickAccumulatorRef.current) >= TICK_THRESHOLD) {
                 const dir = tickAccumulatorRef.current > 0 ? 1 : -1
-                onSpinChange(dir)
+                onSpinChangeRef.current(dir)
                 vibrate()
                 tickAccumulatorRef.current -= (dir * TICK_THRESHOLD)
             }
@@ -103,11 +102,11 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
         setRenderRotation(rotationRef.current)
 
         // Tick Logic (Inertia)
-        if (mode === 'edit' && onSpinChange) {
+        if (mode === 'edit' && onSpinChangeRef.current) {
             tickAccumulatorRef.current += velocityRef.current
             if (Math.abs(tickAccumulatorRef.current) >= TICK_THRESHOLD) {
                 const dir = tickAccumulatorRef.current > 0 ? 1 : -1
-                onSpinChange(dir)
+                onSpinChangeRef.current(dir)
                 vibrate()
                 tickAccumulatorRef.current -= (dir * TICK_THRESHOLD)
             }
@@ -118,23 +117,19 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
         rafIdRef.current = requestAnimationFrame(inertiaLoop)
     }
 
-    // --- EFFECCT: BIND LISTENERS ---
+    // --- BIND LISTENERS ---
     useEffect(() => {
         const el = containerRef.current
         if (!el) return
 
         const opts = { passive: false }
 
-        // Touch
         el.addEventListener('touchstart', onTouchStart, opts)
-        el.addEventListener('touchmove', onTouchMove, opts) // The Magic Line
+        el.addEventListener('touchmove', onTouchMove, opts)
         el.addEventListener('touchend', onTouchEnd, opts)
 
-        // Mouse (For Dev)
         const onMouseDown = (e) => onTouchStart(e)
-        const onMouseMove = (e) => {
-            if (isDraggingRef.current) onTouchMove(e)
-        }
+        const onMouseMove = (e) => { if (isDraggingRef.current) onTouchMove(e) }
         const onMouseUp = (e) => onTouchEnd(e)
 
         el.addEventListener('mousedown', onMouseDown)
@@ -149,11 +144,8 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
             window.removeEventListener('mousemove', onMouseMove)
             window.removeEventListener('mouseup', onMouseUp)
         }
-    }, [mode]) // Re-bind only if mode changes (for Tick Logic closure)
-    // NOTE: onSpinChange must be stable or ref'd to strictly avoid stale closures, 
-    // but typically Function props are stable enough or we accept hot-swap re-bind.
+    }, [mode])
 
-    // Calculate Geometry
     const itemCount = items.length
     const radius = 160
     const gap = 2

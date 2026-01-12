@@ -24,31 +24,31 @@
 
 /* THE SPINNING PART */
 /* THE SPINNING PART */
+/* THE SPINNING PART */
 .wheel-container {
-    /* Absolute fill of the wrapper, but centered explicitly */
+    /* ... existing styles ... */
     position: absolute;
     top: 0;
     left: 0;
-    /* Note: We also rotate this container for the physics spin.
-       So we must chain the transforms: translate AND rotate.
-       WE HANDLE THIS IN JSX STYLE usually, but here we set base.
-       Actually, React controls 'transform'. We need to be careful.
-       If React sets `transform: rotate(...)`, it overwrites `translate`.
-
-       BETTER FIX:
-       Keep `top: 0; left: 0` but ensure parent is strict.
-       Let's try margin-auto trick if absolute fails?
-       No, let's Stick to top:0 but verify 100% size.
-    */
     width: 100%;
     height: 100%;
-    /* transform is handled by React inline-style */
 
     border-radius: 50%;
     background: #222222;
-    /* BACKGROUND 1: Dark Gray (The "Lines") */
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     overflow: hidden;
+
+    /* LOW Z-INDEX: Ensure Button (100) is clickable */
+    z-index: 1;
+}
+
+/* ... solid disk ... */
+.solid-disk-overlay {
+    /* ... existing ... */
+    z-index: 5;
+    /* relative to container */
+    pointer-events: none;
+    /* PASS THROUGH CLICKS */
 }
 
 /* The Wedges */
@@ -228,4 +228,34 @@
     font-size: 12px;
     opacity: 0.7;
     margin-top: 5px;
+}
+
+/* SOLID DISK OVERLAY (Edit Mode) */
+.solid-disk-overlay {
+    position: absolute;
+    top: 5%;
+    left: 5%;
+    width: 90%;
+    height: 90%;
+    border-radius: 50%;
+    background: #222;
+    /* Dark base */
+
+    /* SAFE DIAL TICKS */
+    /* Creates distinct radial lines every 10 degrees */
+    background-image: repeating-conic-gradient(transparent 0deg,
+            transparent 9deg,
+            #444 9deg,
+            /* The Tick Color */
+            #444 10deg
+            /* 1 deg thickness */
+        );
+
+    /* Soften the edges so ticks appear only near rim */
+    -webkit-mask-image: radial-gradient(circle, transparent 60%, black 65%);
+    mask-image: radial-gradient(circle, transparent 60%, black 65%);
+
+    pointer-events: none;
+    /* Let touches pass through to container */
+    z-index: 5;
 }
