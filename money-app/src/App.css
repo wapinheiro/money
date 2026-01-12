@@ -12,6 +12,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow: hidden;
   user-select: none;
+  /* GLOBAL SCROLL LOCK */
+  overscroll-behavior: none;
+  touch-action: none;
+  /* Disable panning everywhere by default? might be too aggressive */
 }
 
 .app-container {

@@ -2,29 +2,34 @@ import { useState, useRef, useEffect } from 'react'
 import './ActionWheel.css'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 
-// Haptics
+// Haptics Helper
 const vibrate = async () => {
     try {
         await Haptics.impact({ style: ImpactStyle.Light })
     } catch (e) {
-        // Fallback for web dev
         if (navigator.vibrate) navigator.vibrate(15)
     }
 }
 
-export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpad', onSpinChange }) {
-    const [rotation, setRotation] = useState(0)
-    const [isDragging, setIsDragging] = useState(false)
-    const lastAngle = useRef(0)
-    const velocity = useRef(0)
-    const rafId = useRef(null)
-    const dragDistance = useRef(0)
+export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSpinChange }) {
+    const containerRef = useRef(null)
 
-    // TICK ACCUMULATOR for Precision Spin
-    const tickAccumulator = useRef(0)
-    const TICK_THRESHOLD = 45 // Degrees of rotation required to trigger one 'tick' (card change)
+    // PHYSICS STATE (Refs for Native Listener Access)
+    const rotationRef = useRef(0)
+    const lastAngleRef = useRef(0)
+    const velocityRef = useRef(0)
+    const isDraggingRef = useRef(false)
+    const rafIdRef = useRef(null)
+    const dragDistanceRef = useRef(0)
+    const tickAccumulatorRef = useRef(0)
 
-    // Calculate angle from center of wheel to touch point
+    // REACT STATE (For Rendering)
+    const [renderRotation, setRenderRotation] = useState(0)
+
+    // CONSTANTS
+    const TICK_THRESHOLD = 45
+
+    // Helper: Get Angle
     const getAngle = (clientX, clientY, rect) => {
         const centerX = rect.left + rect.width / 2
         const centerY = rect.top + rect.height / 2
@@ -33,137 +38,141 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
         return Math.atan2(dy, dx) * (180 / Math.PI)
     }
 
-    const handleStart = (e) => {
-        setIsDragging(true)
-        dragDistance.current = 0
-        velocity.current = 0
-        // Stop any inertial movement
-        if (rafId.current) cancelAnimationFrame(rafId.current)
+    // --- LISTENER LOGIC ---
+    const onTouchStart = (e) => {
+        // e.preventDefault() // Optional here
+        isDraggingRef.current = true
+        dragDistanceRef.current = 0
+        velocityRef.current = 0
+        if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current)
 
         const touch = e.touches ? e.touches[0] : e
-        const rect = e.currentTarget.getBoundingClientRect()
-        // Capture initial angle relative to current rotation
-        lastAngle.current = getAngle(touch.clientX, touch.clientY, rect) - rotation
+        const rect = containerRef.current.getBoundingClientRect()
 
-        // Reset Accumulator on start for predictable behavior
-        tickAccumulator.current = 0
+        // Calculate offset
+        lastAngleRef.current = getAngle(touch.clientX, touch.clientY, rect) - rotationRef.current
+        tickAccumulatorRef.current = 0
     }
 
-    const handleMove = (e) => {
-        if (!isDragging) return
+    const onTouchMove = (e) => {
+        // CRITICAL: Prevent Browser Scroll
+        if (e.cancelable) e.preventDefault()
+
+        if (!isDraggingRef.current) return
+
         const touch = e.touches ? e.touches[0] : e
-        const rect = e.currentTarget.getBoundingClientRect()
+        const rect = containerRef.current.getBoundingClientRect()
         const currentAngle = getAngle(touch.clientX, touch.clientY, rect)
 
-        const newRotation = currentAngle - lastAngle.current
+        const newRotation = currentAngle - lastAngleRef.current
 
-        // Track total movement for click safety
-        const delta = Math.abs(newRotation - rotation)
-        dragDistance.current += delta
+        // Metrics
+        const diff = newRotation - rotationRef.current
+        dragDistanceRef.current += Math.abs(diff)
+        velocityRef.current = diff
 
-        // Calculate simple instantaneous velocity and update rotation
-        const diff = newRotation - rotation
-        velocity.current = diff
-        setRotation(newRotation)
+        // Update State
+        rotationRef.current = newRotation
+        setRenderRotation(newRotation) // Trigger Render
 
-        // --- TICK LOGIC (DRAG) ---
+        // Tick Logic
         if (mode === 'edit' && onSpinChange) {
-            tickAccumulator.current += diff
-
-            // Check if we crossed the threshold
-            if (Math.abs(tickAccumulator.current) >= TICK_THRESHOLD) {
-                const direction = tickAccumulator.current > 0 ? 1 : -1
-
-                // Fire Event
-                onSpinChange(direction)
+            tickAccumulatorRef.current += diff
+            if (Math.abs(tickAccumulatorRef.current) >= TICK_THRESHOLD) {
+                const dir = tickAccumulatorRef.current > 0 ? 1 : -1
+                onSpinChange(dir)
                 vibrate()
-
-                // Reduce accumulator, keeping remainder for smoothness
-                tickAccumulator.current -= (direction * TICK_THRESHOLD)
+                tickAccumulatorRef.current -= (dir * TICK_THRESHOLD)
             }
         } else {
-            // Standard haptic (velocity based) for numpad
-            if (Math.abs(velocity.current) > 1) vibrate()
+            if (Math.abs(velocityRef.current) > 1) vibrate()
         }
     }
 
-    const handleEnd = () => {
-        setIsDragging(false)
-        // Start Inertia loop
+    const onTouchEnd = (e) => {
+        isDraggingRef.current = false
         requestAnimationFrame(inertiaLoop)
     }
 
-    // --- PHYSICS LOOP ---
     const inertiaLoop = () => {
-        if (Math.abs(velocity.current) < 0.1) return // Stop when slow enough
+        if (isDraggingRef.current) return
+        if (Math.abs(velocityRef.current) < 0.1) return
 
-        // "Water" Friction: Decelerate
-        velocity.current *= 0.95
+        velocityRef.current *= 0.95
+        rotationRef.current += velocityRef.current
+        setRenderRotation(rotationRef.current)
 
-        setRotation(prev => {
-            const nextRot = prev + velocity.current
-            return nextRot
-        })
-
-        // --- TICK LOGIC (INERTIA) ---
+        // Tick Logic (Inertia)
         if (mode === 'edit' && onSpinChange) {
-            tickAccumulator.current += velocity.current
-
-            if (Math.abs(tickAccumulator.current) >= TICK_THRESHOLD) {
-                const direction = tickAccumulator.current > 0 ? 1 : -1
-                onSpinChange(direction)
+            tickAccumulatorRef.current += velocityRef.current
+            if (Math.abs(tickAccumulatorRef.current) >= TICK_THRESHOLD) {
+                const dir = tickAccumulatorRef.current > 0 ? 1 : -1
+                onSpinChange(dir)
                 vibrate()
-                tickAccumulator.current -= (direction * TICK_THRESHOLD)
+                tickAccumulatorRef.current -= (dir * TICK_THRESHOLD)
             }
         } else {
-            // Standard haptic for inertia
-            if (Math.abs(velocity.current) > 0.5) vibrate()
+            if (Math.abs(velocityRef.current) > 0.5) vibrate()
         }
 
-        rafId.current = requestAnimationFrame(inertiaLoop)
+        rafIdRef.current = requestAnimationFrame(inertiaLoop)
     }
 
-    // --- CLICK HANDLER ---
-    const handleWedgeClick = (item) => {
-        // Safety: If we dragged more than a few degrees, treat as spin, not click
-        if (Math.abs(dragDistance.current) > 5) return
+    // --- EFFECCT: BIND LISTENERS ---
+    useEffect(() => {
+        const el = containerRef.current
+        if (!el) return
 
-        vibrate()
-        onInput(item)
-    }
+        const opts = { passive: false }
 
-    // Dynamic Geometry
+        // Touch
+        el.addEventListener('touchstart', onTouchStart, opts)
+        el.addEventListener('touchmove', onTouchMove, opts) // The Magic Line
+        el.addEventListener('touchend', onTouchEnd, opts)
+
+        // Mouse (For Dev)
+        const onMouseDown = (e) => onTouchStart(e)
+        const onMouseMove = (e) => {
+            if (isDraggingRef.current) onTouchMove(e)
+        }
+        const onMouseUp = (e) => onTouchEnd(e)
+
+        el.addEventListener('mousedown', onMouseDown)
+        window.addEventListener('mousemove', onMouseMove)
+        window.addEventListener('mouseup', onMouseUp)
+
+        return () => {
+            el.removeEventListener('touchstart', onTouchStart)
+            el.removeEventListener('touchmove', onTouchMove)
+            el.removeEventListener('touchend', onTouchEnd)
+            el.removeEventListener('mousedown', onMouseDown)
+            window.removeEventListener('mousemove', onMouseMove)
+            window.removeEventListener('mouseup', onMouseUp)
+        }
+    }, [mode]) // Re-bind only if mode changes (for Tick Logic closure)
+    // NOTE: onSpinChange must be stable or ref'd to strictly avoid stale closures, 
+    // but typically Function props are stable enough or we accept hot-swap re-bind.
+
+    // Calculate Geometry
     const itemCount = items.length
-    const sliceAngle = 360 / itemCount
-    const radius = 160 // Matches CSS
-    // Tangent Formula: 2 * R * tan(theta/2)
-    // We subtract a small "gap" (e.g. 2px) to let the background show through as a separator line.
+    const radius = 160
     const gap = 2
-    const wedgeWidth = (2 * radius * Math.tan((sliceAngle / 2) * (Math.PI / 180))) - gap
+    const wedgeWidth = (2 * radius * Math.tan(((360 / items.length) / 2) * (Math.PI / 180))) - gap
 
     return (
         <div
+            ref={containerRef}
             className={`wheel-container ${mode}`}
-            onTouchStart={handleStart}
-            onTouchMove={handleMove}
-            onTouchEnd={handleEnd}
-            // Mouse events
-            onMouseDown={handleStart}
-            onMouseMove={handleMove}
-            onMouseUp={handleEnd}
-            onMouseLeave={handleEnd}
-            style={{ transform: `rotate(${rotation}deg)` }}
+            style={{ transform: `rotate(${renderRotation}deg)` }}
         >
-            {/* IN EDIT MODE: Render Solid Disk (No Wedges) */}
             {mode === 'edit' ? (
                 <div className="solid-disk-overlay"></div>
             ) : (
-                /* RENDER WEDGES */
                 items.map((item, index) => {
-                    const angle = index * sliceAngle
+                    const angle = index * (360 / itemCount)
                     return (
                         <div
-                            key={item.label || item.value}
+                            key={index}
                             className={`wedge ${mode}-wedge`}
                             style={{
                                 transform: `rotate(${angle}deg)`,
@@ -171,16 +180,17 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
                                 marginLeft: `${-wedgeWidth / 2}px`
                             }}
                         >
-                            {/* 1) The Background Shape */}
                             <div className="wedge-shape"></div>
-
-                            {/* 2) The Content */}
                             <div
                                 className="wedge-content-touch-target"
-                                onClick={() => handleWedgeClick(item)}
+                                onClick={() => {
+                                    if (Math.abs(dragDistanceRef.current) < 5) {
+                                        vibrate()
+                                        onInput(item)
+                                    }
+                                }}
                             >
-                                {/* GYRO TEXT: Counter-rotate to keep upright */}
-                                <div className="wedge-content" style={{ transform: `rotate(${-angle - rotation}deg)` }}>
+                                <div className="wedge-content" style={{ transform: `rotate(${-angle - renderRotation}deg)` }}>
                                     {item.label}
                                     {item.subLabel && <div className="wedge-sublabel">{item.subLabel}</div>}
                                 </div>
