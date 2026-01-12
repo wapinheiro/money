@@ -75,7 +75,15 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
 
         // Logic to select item based on rotation could go here (triggering haptics)
         // For now, we just spin.
-        if (Math.abs(velocity.current) > 1) vibrate()
+        if (Math.abs(velocity.current) > 1) {
+            vibrate()
+            // IPOD MODE: Fire spin events
+            if (mode === 'edit' && onSpinChange) {
+                // Determine direction
+                const direction = velocity.current > 0 ? 1 : -1
+                onSpinChange(direction)
+            }
+        }
     }
 
     const handleEnd = () => {
@@ -91,9 +99,28 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
         // "Water" Friction: Decelerate
         velocity.current *= 0.95
 
-        setRotation(prev => prev + velocity.current)
+        setRotation(prev => {
+            const nextRot = prev + velocity.current
 
-        if (Math.abs(velocity.current) > 0.5) vibrate() // Tick while spinning fast
+            // IPOD MODE: Fire events during inertia
+            if (mode === 'edit' && onSpinChange && Math.abs(velocity.current) > 0.5) {
+                // Throttle events slightly via simple modulo or probability to avoid 60fps spam?
+                // For now, let's just fire every frame if fast, parent usually throttles state.
+                // Better: Accumulate rotation and fire on thresholds.
+            }
+            return nextRot
+        })
+
+        if (Math.abs(velocity.current) > 0.5) {
+            vibrate() // Tick while spinning fast
+            if (mode === 'edit' && onSpinChange) {
+                // Simple Threshold Logic: fire event every ~10 degrees?
+                // Let's rely on the parent state update for now, or just send raw velocity?
+                // Let's send a pulse.
+                const direction = velocity.current > 0 ? 1 : -1
+                onSpinChange(direction)
+            }
+        }
 
         rafId.current = requestAnimationFrame(inertiaLoop)
     }
@@ -103,8 +130,6 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
         // Safety: If we dragged more than a few degrees, treat as spin, not click
         if (Math.abs(dragDistance.current) > 5) return
 
-        // Context Mode: Tap triggers specific action (e.g. edit)
-        // Numpad Mode: Tap inputs value
         vibrate()
         onInput(item)
     }
@@ -131,36 +156,41 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
             onMouseLeave={handleEnd}
             style={{ transform: `rotate(${rotation}deg)` }}
         >
-            {/* RENDER WEDGES */}
-            {items.map((item, index) => {
-                const angle = index * sliceAngle
-                return (
-                    <div
-                        key={item.label || item.value}
-                        className={`wedge ${mode}-wedge`}
-                        style={{
-                            transform: `rotate(${angle}deg)`,
-                            width: `${wedgeWidth}px`,
-                            marginLeft: `${-wedgeWidth / 2}px`
-                        }}
-                    >
-                        {/* 1) The Background Shape */}
-                        <div className="wedge-shape"></div>
-
-                        {/* 2) The Content */}
+            {/* IN EDIT MODE: Render Solid Disk (No Wedges) */}
+            {mode === 'edit' ? (
+                <div className="solid-disk-overlay"></div>
+            ) : (
+                /* RENDER WEDGES */
+                items.map((item, index) => {
+                    const angle = index * sliceAngle
+                    return (
                         <div
-                            className="wedge-content-touch-target"
-                            onClick={() => handleWedgeClick(item)}
+                            key={item.label || item.value}
+                            className={`wedge ${mode}-wedge`}
+                            style={{
+                                transform: `rotate(${angle}deg)`,
+                                width: `${wedgeWidth}px`,
+                                marginLeft: `${-wedgeWidth / 2}px`
+                            }}
                         >
-                            {/* GYRO TEXT: Counter-rotate to keep upright */}
-                            <div className="wedge-content" style={{ transform: `rotate(${-angle - rotation}deg)` }}>
-                                {item.label}
-                                {item.subLabel && <div className="wedge-sublabel">{item.subLabel}</div>}
+                            {/* 1) The Background Shape */}
+                            <div className="wedge-shape"></div>
+
+                            {/* 2) The Content */}
+                            <div
+                                className="wedge-content-touch-target"
+                                onClick={() => handleWedgeClick(item)}
+                            >
+                                {/* GYRO TEXT: Counter-rotate to keep upright */}
+                                <div className="wedge-content" style={{ transform: `rotate(${-angle - rotation}deg)` }}>
+                                    {item.label}
+                                    {item.subLabel && <div className="wedge-sublabel">{item.subLabel}</div>}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )
-            })}
+                    )
+                })
+            )}
         </div>
     )
 }

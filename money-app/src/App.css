@@ -50,7 +50,7 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 
   /* DEBUG BORDER: Light Grey as requested */
-  border: 1px solid #ccc;
+  /* border: 1px solid #ccc; */
 }
 
 /* BOTTOM SECTION: Sits at the bottom, holds the wheel */
@@ -59,7 +59,6 @@ body {
   /* Do not grow, just fit the content */
   width: 100%;
 
-  /* Layout the Wheel inside */
   /* Layout the Wheel inside */
   display: flex;
   justify-content: flex-end;
@@ -82,4 +81,61 @@ body {
   font-size: 40px;
   opacity: 0.5;
   margin-right: 5px;
+}
+
+/* TRANSACTION SUMMARY CARD */
+.summary-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 30px;
+  width: 80%;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.summary-amount {
+  font-size: 48px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #4CAF50;
+  text-shadow: 0 2px 10px rgba(76, 175, 80, 0.3);
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 0;
+}
+
+.summary-row:last-child {
+  border-bottom: none;
+}
+
+.summary-label {
+  color: #aaa;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.summary-value {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

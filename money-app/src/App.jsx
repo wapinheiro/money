@@ -19,25 +19,49 @@ const NUMPAD_ITEMS = [
   { label: '⌫', value: 'del' },
 ]
 
-const MOCK_CONTEXT = [
-  { label: 'Starbucks', value: 'merchant', subLabel: 'Merchant' },
-  { label: 'Dining', value: 'category', subLabel: 'Category' },
-  { label: 'Chase', value: 'account', subLabel: 'Account' }
-]
-
 function App() {
   const [amount, setAmount] = useState('0.00')
-  const [mode, setMode] = useState('numpad') // 'numpad' | 'context'
+  const [mode, setMode] = useState('numpad') // 'numpad' | 'context' | 'edit'
   const [statusMsg, setStatusMsg] = useState('Ready')
+  const [contextItems, setContextItems] = useState([])
 
-  // ... (Effect) ...
+  /* State for Edit Mode */
+  const [editTarget, setEditTarget] = useState(null) // 'merchant', 'category', 'account'
+  const [editOptions, setEditOptions] = useState([])
+  const [editIndex, setEditIndex] = useState(0)
+
+  // Initialize DB on mount
+  useEffect(() => {
+    seedDatabase().catch(err => console.error(err))
+  }, [])
 
   const handleDigit = (item) => {
     // If we receive an object (from new wheel), extract value
     const val = item.value || item
 
+    // CONTEXT MODE: Tap to Edit
     if (mode === 'context') {
-      setStatusMsg(`Editing ${item.label}...`)
+      const targetType = item.value
+      setEditTarget(targetType)
+      setMode('edit')
+      setStatusMsg(`Select ${item.subLabel}`)
+
+      // Load Options based on type
+      async function loadOptions() {
+        let options = []
+        if (targetType === 'merchant') options = await db.merchants.toArray()
+        else if (targetType === 'category') options = await db.categories.toArray()
+        else if (targetType === 'account') options = await db.accounts.toArray()
+
+        setEditOptions(options)
+        setEditIndex(0) // Reset index or find current val
+      }
+      loadOptions()
+      return
+    }
+
+    if (mode === 'edit') {
+      // Tap on wheel in edit mode does nothing
       return
     }
 
@@ -51,12 +75,71 @@ function App() {
     }
   }
 
+  // --- INFINITE SPIN HANDLER ---
+  const handleSpinChange = (direction) => {
+    setEditIndex(prev => {
+      let next = prev + direction
+      if (next < 0) next = editOptions.length - 1
+      if (next >= editOptions.length) next = 0
+      return next
+    })
+  }
+
+  // PREDICTION ENGINE (V1: Simple Fetch)
+  const predictContext = async () => {
+    const allMerchants = await db.merchants.toArray()
+    const allCategories = await db.categories.toArray()
+    const allAccounts = await db.accounts.toArray()
+
+    if (allMerchants.length === 0) return []
+
+    // Randomize Prediction for demo purposes
+    const randomMerchant = allMerchants[Math.floor(Math.random() * allMerchants.length)]
+    const associatedCategory = allCategories.find(c => c.id === randomMerchant.defaultCategoryId)
+
+    // Pick first account or random
+    const predictedAccount = allAccounts.length > 0
+      ? allAccounts[Math.floor(Math.random() * allAccounts.length)]
+      : { name: 'Cash' }
+
+    return [
+      { label: randomMerchant.name, value: 'merchant', subLabel: 'Merchant' },
+      { label: associatedCategory?.name || 'Uncategorized', value: 'category', subLabel: 'Category' },
+      { label: predictedAccount.name, value: 'account', subLabel: 'Account' }
+    ]
+  }
+
   const handleCenterClick = async () => {
     if (mode === 'numpad') {
       if (amount === '0.00') return
+
+      // GENERATE PREDICTION
+      const prediction = await predictContext()
+      setContextItems(prediction)
+
       // TRANSITION TO CONTEXT
       setMode('context')
       setStatusMsg('Confirm Details')
+      return
+    }
+
+    if (mode === 'edit') {
+      // CONFIRM SELECTION
+      const selectedOption = editOptions[editIndex]
+
+      // Update Context Items
+      const newContext = contextItems.map(item => {
+        if (item.value === editTarget) {
+          return { ...item, label: selectedOption.name }
+        }
+        return item
+      })
+      setContextItems(newContext)
+
+      // Return to Context Mode
+      setMode('context')
+      setEditTarget(null)
+      setStatusMsg('Updated')
       return
     }
 
@@ -67,8 +150,9 @@ function App() {
           amount: parseFloat(amount),
           date: new Date(),
           status: 'review',
-          merchant: 'Starbucks', // Mocked for now
-          category: 'Dining'
+          merchant: contextItems[0].label,
+          category: contextItems[1].label,
+          account: contextItems[2].label
         })
 
         // UX Feedback
@@ -86,33 +170,81 @@ function App() {
     }
   }
 
-  const currentItems = mode === 'numpad' ? NUMPAD_ITEMS : MOCK_CONTEXT
+  const currentItems = mode === 'numpad' ? NUMPAD_ITEMS : contextItems
 
   return (
     <div className="app-container">
       {/* DETAILS AREA */}
       <div className="display-area">
-        <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '10px' }}>v1.23.1 Retry Polish</div>
-        <div className="readout">
-          <span className="currency">$</span>
-          <span className="amount">{amount}</span>
-        </div>
-        <div style={{ color: 'lime', height: '20px' }}>{statusMsg}</div>
+        <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '10px' }}>v1.27 Edit Mode</div>
+
+        {mode === 'numpad' && (
+          <div className="readout">
+            <span className="currency">$</span>
+            <span className="amount">{amount}</span>
+          </div>
+        )}
+
+        {mode === 'context' && (
+          <div className="summary-card">
+            <div className="summary-amount">${amount}</div>
+            {contextItems.map((item, i) => (
+              <div className="summary-row" key={i} onClick={() => handleDigit(item)}>
+                <span className="summary-label">{item.subLabel}</span>
+                <span className="summary-value">{item.label}</span>
+                <span style={{ color: '#666' }}> › </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {mode === 'edit' && (
+          /* 3D CAROUSEL (Simple List for now) */
+          <div className="carousel-container" style={{ perspective: '1000px', height: '200px', position: 'relative' }}>
+            {editOptions.map((opt, i) => {
+              const offset = i - editIndex
+              if (Math.abs(offset) > 2) return null // Hide far items
+
+              const transform = `translate(-50%, -50%) translateY(${offset * 60}px) scale(${1 - Math.abs(offset) * 0.2})`
+              const opacity = 1 - Math.abs(offset) * 0.5
+
+              return (
+                <div key={i} style={{
+                  position: 'absolute',
+                  top: '50%', left: '50%',
+                  transform: transform,
+                  opacity: opacity,
+                  background: '#333',
+                  padding: '20px',
+                  minWidth: '200px',
+                  textAlign: 'center',
+                  borderRadius: '12px',
+                  border: offset === 0 ? '2px solid #4CAF50' : '1px solid #555',
+                  transition: 'all 0.2s ease-out',
+                  zIndex: 10 - Math.abs(offset)
+                }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '20px' }}>{opt.name}</div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <div style={{ color: 'lime', height: '20px', marginTop: '20px' }}>{statusMsg}</div>
       </div>
 
       {/* ACTION WHEEL */}
-      {/* CONTROLS AREA (Bottom) */}
       <div className="controls-area">
-        {/* The Action Wheel Wrapper (320px) sits inside the controls area */}
         <div className="wheel-wrapper">
           <ActionWheel
             mode={mode}
             items={currentItems}
             onInput={handleDigit}
             onSave={handleCenterClick}
+            onSpinChange={handleSpinChange}
           />
           <button className="center-btn" onClick={handleCenterClick}>
-            {mode === 'numpad' ? 'NEXT' : 'SAVE'}
+            {mode === 'numpad' ? 'NEXT' : (mode === 'edit' ? 'OK' : 'SAVE')}
           </button>
         </div>
       </div>
