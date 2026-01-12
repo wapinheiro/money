@@ -2,10 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import './ActionWheel.css'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 
-// ... existing imports ...
-
-// ... inside component ...
-
 // Haptics
 const vibrate = async () => {
     try {
@@ -15,21 +11,18 @@ const vibrate = async () => {
         if (navigator.vibrate) navigator.vibrate(15)
     }
 }
-// ... existing imports ...
 
 export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpad', onSpinChange }) {
-    // ... (State and handlers remain the same) ...
-    // State for Spin Physics
     const [rotation, setRotation] = useState(0)
     const [isDragging, setIsDragging] = useState(false)
     const lastAngle = useRef(0)
     const velocity = useRef(0)
     const rafId = useRef(null)
+    const dragDistance = useRef(0)
 
-    // Haptics
-    const vibrate = () => {
-        if (navigator.vibrate) navigator.vibrate(5)
-    }
+    // TICK ACCUMULATOR for Precision Spin
+    const tickAccumulator = useRef(0)
+    const TICK_THRESHOLD = 45 // Degrees of rotation required to trigger one 'tick' (card change)
 
     // Calculate angle from center of wheel to touch point
     const getAngle = (clientX, clientY, rect) => {
@@ -39,10 +32,6 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
         const dy = clientY - centerY
         return Math.atan2(dy, dx) * (180 / Math.PI)
     }
-
-    // --- TOUCH HANDLERS FOR SPINNER ---
-    // --- TOUCH HANDLERS FOR SPINNER ---
-    const dragDistance = useRef(0)
 
     const handleStart = (e) => {
         setIsDragging(true)
@@ -55,6 +44,9 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
         const rect = e.currentTarget.getBoundingClientRect()
         // Capture initial angle relative to current rotation
         lastAngle.current = getAngle(touch.clientX, touch.clientY, rect) - rotation
+
+        // Reset Accumulator on start for predictable behavior
+        tickAccumulator.current = 0
     }
 
     const handleMove = (e) => {
@@ -69,20 +61,29 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
         const delta = Math.abs(newRotation - rotation)
         dragDistance.current += delta
 
-        // Calculate simple instantaneous velocity
-        velocity.current = newRotation - rotation
+        // Calculate simple instantaneous velocity and update rotation
+        const diff = newRotation - rotation
+        velocity.current = diff
         setRotation(newRotation)
 
-        // Logic to select item based on rotation could go here (triggering haptics)
-        // For now, we just spin.
-        if (Math.abs(velocity.current) > 1) {
-            vibrate()
-            // IPOD MODE: Fire spin events
-            if (mode === 'edit' && onSpinChange) {
-                // Determine direction
-                const direction = velocity.current > 0 ? 1 : -1
+        // --- TICK LOGIC (DRAG) ---
+        if (mode === 'edit' && onSpinChange) {
+            tickAccumulator.current += diff
+
+            // Check if we crossed the threshold
+            if (Math.abs(tickAccumulator.current) >= TICK_THRESHOLD) {
+                const direction = tickAccumulator.current > 0 ? 1 : -1
+
+                // Fire Event
                 onSpinChange(direction)
+                vibrate()
+
+                // Reduce accumulator, keeping remainder for smoothness
+                tickAccumulator.current -= (direction * TICK_THRESHOLD)
             }
+        } else {
+            // Standard haptic (velocity based) for numpad
+            if (Math.abs(velocity.current) > 1) vibrate()
         }
     }
 
@@ -101,25 +102,22 @@ export default function ActionWheel({ items = [], onInput, onSave, mode = 'numpa
 
         setRotation(prev => {
             const nextRot = prev + velocity.current
-
-            // IPOD MODE: Fire events during inertia
-            if (mode === 'edit' && onSpinChange && Math.abs(velocity.current) > 0.5) {
-                // Throttle events slightly via simple modulo or probability to avoid 60fps spam?
-                // For now, let's just fire every frame if fast, parent usually throttles state.
-                // Better: Accumulate rotation and fire on thresholds.
-            }
             return nextRot
         })
 
-        if (Math.abs(velocity.current) > 0.5) {
-            vibrate() // Tick while spinning fast
-            if (mode === 'edit' && onSpinChange) {
-                // Simple Threshold Logic: fire event every ~10 degrees?
-                // Let's rely on the parent state update for now, or just send raw velocity?
-                // Let's send a pulse.
-                const direction = velocity.current > 0 ? 1 : -1
+        // --- TICK LOGIC (INERTIA) ---
+        if (mode === 'edit' && onSpinChange) {
+            tickAccumulator.current += velocity.current
+
+            if (Math.abs(tickAccumulator.current) >= TICK_THRESHOLD) {
+                const direction = tickAccumulator.current > 0 ? 1 : -1
                 onSpinChange(direction)
+                vibrate()
+                tickAccumulator.current -= (direction * TICK_THRESHOLD)
             }
+        } else {
+            // Standard haptic for inertia
+            if (Math.abs(velocity.current) > 0.5) vibrate()
         }
 
         rafId.current = requestAnimationFrame(inertiaLoop)

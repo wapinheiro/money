@@ -195,7 +195,7 @@ function App() {
     <div className="app-container">
       {/* DETAILS AREA */}
       <div className="display-area">
-        <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '10px' }}>v1.29 Date Added</div>
+        <div style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>v1.33 Fixed Grey</div>
 
         {mode === 'numpad' && (
           <div className="readout">
