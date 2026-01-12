@@ -92,7 +92,7 @@ function App() {
     <div className="app-container">
       {/* DETAILS AREA */}
       <div className="display-area">
-        <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '10px' }}>v1.22 Context Mock</div>
+        <div style={{ color: '#aaa', fontSize: '14px', marginBottom: '10px' }}>v1.23.1 Retry Polish</div>
         <div className="readout">
           <span className="currency">$</span>
           <span className="amount">{amount}</span>

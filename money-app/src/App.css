@@ -69,9 +69,6 @@ body {
 
   /* AIR GAP: Increased to 60px to force separation */
   padding-top: 60px;
-
-  /* DEBUG BORDER: Light Grey as requested */
-  border: 1px solid #ccc;
 }
 
 .readout {
