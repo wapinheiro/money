@@ -75,7 +75,7 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
         setRenderRotation(newRotation)
 
         // Tick Logic
-        if (mode === 'edit' && onSpinChangeRef.current) {
+        if ((mode === 'edit' || mode === 'review_nav') && onSpinChangeRef.current) {
             tickAccumulatorRef.current += diff
             if (Math.abs(tickAccumulatorRef.current) >= TICK_THRESHOLD) {
                 const dir = tickAccumulatorRef.current > 0 ? 1 : -1
@@ -102,7 +102,7 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
         setRenderRotation(rotationRef.current)
 
         // Tick Logic (Inertia)
-        if (mode === 'edit' && onSpinChangeRef.current) {
+        if ((mode === 'edit' || mode === 'review_nav') && onSpinChangeRef.current) {
             tickAccumulatorRef.current += velocityRef.current
             if (Math.abs(tickAccumulatorRef.current) >= TICK_THRESHOLD) {
                 const dir = tickAccumulatorRef.current > 0 ? 1 : -1
@@ -161,7 +161,7 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
             <div className="safe-dial-ticks"></div>
 
             {/* 2. MODE SPECIFIC CONTENT */}
-            {mode === 'edit' ? (
+            {(mode === 'edit' || mode === 'review_nav') ? (
                 <div className="solid-disk-overlay"></div>
             ) : (
                 items.map((item, index) => {

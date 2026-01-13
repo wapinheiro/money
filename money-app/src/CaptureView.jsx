@@ -19,6 +19,9 @@ const NUMPAD_ITEMS = [
     { label: '⌫', value: 'del' },
 ]
 
+// REVIEW NAV INDICES
+const NAV_FIELDS = ['amount', 'merchant', 'category', 'account', 'save']
+
 // UTILS
 function getContrastYIQ(hexcolor) {
     if (!hexcolor) return 'white';
@@ -35,6 +38,9 @@ export default function CaptureView({ onClose }) {
     const [mode, setMode] = useState('numpad') // 'numpad' | 'context' | 'edit'
     const [statusMsg, setStatusMsg] = useState('Ready')
     const [contextItems, setContextItems] = useState([])
+
+    /* State for Review Nav */
+    const [reviewFocus, setReviewFocus] = useState(1) // Default start at 1 (Merchant)
 
     /* State for Edit Mode */
     const [editTarget, setEditTarget] = useState(null) // 'merchant', 'category', 'account'
@@ -83,12 +89,26 @@ export default function CaptureView({ onClose }) {
 
     // --- INFINITE SPIN HANDLER ---
     const handleSpinChange = (direction) => {
-        setEditIndex(prev => {
-            let next = prev + direction
-            if (next < 0) next = editOptions.length - 1
-            if (next >= editOptions.length) next = 0
-            return next
-        })
+        if (mode === 'review_nav') {
+            setReviewFocus(prev => {
+                let next = prev + direction
+                if (next < 0) next = NAV_FIELDS.length - 1
+                if (next >= NAV_FIELDS.length) next = 0
+                return next
+            })
+        }
+        else if (mode === 'edit') {
+            if (editTarget === 'amount') {
+                // Skip amount edit via wheel for now, return to numpad logic handled in click
+                return
+            }
+            setEditIndex(prev => {
+                let next = prev + direction
+                if (next < 0) next = editOptions.length - 1
+                if (next >= editOptions.length) next = 0
+                return next
+            })
+        }
     }
 
     // PREDICTION ENGINE (V1: Simple Fetch)
@@ -144,9 +164,54 @@ export default function CaptureView({ onClose }) {
             const prediction = await predictContext()
             setContextItems(prediction)
 
-            // TRANSITION TO CONTEXT
-            setMode('context')
-            setStatusMsg('Confirm Details')
+            // TRANSITION TO REVIEW NAV (Default focus: Merchant)
+            setMode('review_nav')
+            setReviewFocus(1)
+            setStatusMsg('Review Details')
+            return
+        }
+
+        if (mode === 'review_nav') {
+            const focusedField = NAV_FIELDS[reviewFocus]
+
+            if (focusedField === 'save') {
+                // SAVE TO DB
+                try {
+                    await db.transactions.add({
+                        amount: parseFloat(amount),
+                        date: new Date(),
+                        status: 'review',
+                        merchant: contextItems[0].label,
+                        category: contextItems[1].label,
+                        account: contextItems[2].label
+                    })
+                    setStatusMsg(`Saved $${amount}!`)
+                    setTimeout(() => { if (onClose) onClose() }, 1000)
+                } catch (error) {
+                    console.error("Save failed", error)
+                }
+                return
+            }
+
+            // EDIT ACTION
+            setEditTarget(focusedField)
+
+            if (focusedField === 'amount') {
+                setMode('numpad') // Return to Numpad for amount
+                return
+            }
+
+            // For other fields, Enter Edit Mode
+            setMode('edit')
+            setStatusMsg(`Select ${focusedField}`)
+
+            let options = []
+            if (focusedField === 'merchant') options = await db.merchants.toArray()
+            else if (focusedField === 'category') options = await db.categories.toArray()
+            else if (focusedField === 'account') options = await db.accounts.toArray()
+
+            setEditOptions(options)
+            setEditIndex(0)
             return
         }
 
@@ -164,36 +229,12 @@ export default function CaptureView({ onClose }) {
                 return item
             })
             setContextItems(newContext)
-            setMode('context')
+
+            // RETURN TO REVIEW NAV
+            setMode('review_nav')
             setEditTarget(null)
             setStatusMsg('Updated')
             return
-        }
-
-        if (mode === 'context') {
-            // SAVE TO DB
-            try {
-                await db.transactions.add({
-                    amount: parseFloat(amount),
-                    date: new Date(),
-                    status: 'review',
-                    merchant: contextItems[0].label,
-                    category: contextItems[1].label,
-                    account: contextItems[2].label
-                })
-
-                // UX Feedback
-                setStatusMsg(`Saved $${amount}!`)
-
-                // EXIT STRATEGY: Wait a bit then Close
-                setTimeout(() => {
-                    if (onClose) onClose() // Return to Home
-                }, 1000)
-
-            } catch (error) {
-                console.error("Save failed", error)
-                setStatusMsg("Error Saving!")
-            }
         }
     }
 
@@ -226,10 +267,42 @@ export default function CaptureView({ onClose }) {
         if (Math.abs(deltaX) > Math.abs(deltaY)) {
             // Horizontal: Swipe Left (<-) -> Back
             if (deltaX < -MIN_SWIPE) {
-                if (onClose) onClose()
+                // If in Edit mode, go back to Review Nav
+                if (mode === 'edit') {
+                    setMode('review_nav')
+                } else if (mode === 'review_nav') {
+                    // Go back to Numpad
+                    setMode('numpad')
+                } else {
+                    if (onClose) onClose()
+                }
             }
         }
         setTouchStart(null)
+    }
+
+    // Helper for Highlight Styles
+    const getHighlightStyle = (fieldName) => {
+        if (mode === 'review_nav' && NAV_FIELDS[reviewFocus] === fieldName) {
+            return {
+                border: '2px solid var(--accent-color)',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                transform: 'scale(1.02)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            }
+        }
+        return { border: '2px solid transparent' } // Invisible border to prevent layout shift
+    }
+
+    // Dynamic Button Label
+    const getButtonLabel = () => {
+        if (mode === 'numpad') return 'NEXT'
+        if (mode === 'edit') return 'OK'
+
+        // Review Nav
+        const focusField = NAV_FIELDS[reviewFocus]
+        if (focusField === 'save') return 'SAVE'
+        return 'EDIT'
     }
 
     return (
@@ -254,9 +327,21 @@ export default function CaptureView({ onClose }) {
                     </div>
                 )}
 
-                {mode === 'context' && (
+                {/* SHOW SUMMARY CARD FOR REVIEW NAV AND EDIT MODES */}
+                {(mode === 'review_nav' || mode === 'edit') && (
                     <div className="summary-card">
-                        <div className="summary-amount">${amount}</div>
+
+                        {/* AMOUNT ROW (Editable now) */}
+                        <div
+                            className="summary-amount"
+                            style={{
+                                ...getHighlightStyle('amount'),
+                                padding: '5px 10px', borderRadius: '12px', transition: 'all 0.2s',
+                                display: 'inline-block'
+                            }}
+                        >
+                            ${amount}
+                        </div>
 
                         {/* DATE ROW */}
                         <div className="summary-row">
@@ -268,7 +353,14 @@ export default function CaptureView({ onClose }) {
                         </div>
 
                         {contextItems.map((item, i) => (
-                            <div className="summary-row" key={i} onClick={() => handleDigit(item)}>
+                            <div
+                                className="summary-row"
+                                key={i}
+                                style={{
+                                    ...getHighlightStyle(item.value),
+                                    transition: 'all 0.2s', paddingLeft: '5px', paddingRight: '5px', borderRadius: '8px'
+                                }}
+                            >
                                 <span className="summary-label">{item.subLabel}</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     {/* LOGO BUBBLE */}
@@ -293,8 +385,16 @@ export default function CaptureView({ onClose }) {
                 )}
 
                 {mode === 'edit' && (
-                    /* 3D CAROUSEL */
-                    <div className="carousel-container" style={{ perspective: '1000px', height: '200px', position: 'relative' }}>
+                    /* 3D CAROUSEL (Absolute Overlay) */
+                    <div className="carousel-container" style={{
+                        position: 'absolute',
+                        bottom: '20px',
+                        left: '0',
+                        width: '100%',
+                        height: '200px',
+                        perspective: '1000px',
+                        zIndex: 50 // Ensure it's on top
+                    }}>
                         {editOptions.map((opt, i) => {
                             const offset = i - editIndex
                             if (Math.abs(offset) > 2) return null // Hide far items
@@ -348,8 +448,13 @@ export default function CaptureView({ onClose }) {
                         onClick={handleCenterClick}
                         onTouchStart={handleTouchStart}
                         onTouchEnd={handleTouchEnd}
+                        style={{
+                            background: (mode === 'review_nav' && NAV_FIELDS[reviewFocus] === 'save') ? 'var(--accent-color)' :
+                                (mode === 'review_nav' && NAV_FIELDS[reviewFocus] !== 'save') ? '#444' :
+                                    'var(--accent-color)'
+                        }}
                     >
-                        {mode === 'numpad' ? 'NEXT' : (mode === 'edit' ? 'OK' : 'SAVE')}
+                        {getButtonLabel()}
                     </button>
                 </div>
             </div>
