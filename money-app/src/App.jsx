@@ -19,6 +19,17 @@ const NUMPAD_ITEMS = [
   { label: '⌫', value: 'del' },
 ]
 
+// UTILS
+function getContrastYIQ(hexcolor) {
+  if (!hexcolor) return 'white';
+  hexcolor = hexcolor.replace('#', '');
+  var r = parseInt(hexcolor.substr(0, 2), 16);
+  var g = parseInt(hexcolor.substr(2, 2), 16);
+  var b = parseInt(hexcolor.substr(4, 2), 16);
+  var yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return (yiq >= 128) ? 'black' : 'white';
+}
+
 function App() {
   const [amount, setAmount] = useState('0.00')
   const [mode, setMode] = useState('numpad') // 'numpad' | 'context' | 'edit'
@@ -145,6 +156,8 @@ function App() {
     }
 
     if (mode === 'edit') {
+      if (!editOptions[editIndex]) return // Guard
+
       // CONFIRM SELECTION
       const selectedOption = editOptions[editIndex]
 
@@ -195,7 +208,7 @@ function App() {
     <div className="app-container">
       {/* DETAILS AREA */}
       <div className="display-area">
-        <div style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>v1.37 Snappy Wheel</div>
+        <div style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>v1.41 Polished Ticks</div>
 
         {mode === 'numpad' && (
           <div className="readout">
@@ -211,7 +224,7 @@ function App() {
             {/* DATE ROW */}
             <div className="summary-row">
               <span className="summary-label">Date</span>
-              <span className="summary-value" style={{ color: 'white' }}>
+              <span className="summary-value" style={{ color: '#1C1C1E' }}>
                 {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
               </span>
               <span style={{ width: '15px' }}></span>
@@ -230,8 +243,21 @@ function App() {
                       boxShadow: '0 0 5px ' + item.color
                     }}></div>
                   )}
-                  <span className="summary-value" style={{ color: item.color || 'white' }}>
-                    {item.logo} {item.label}
+                  {/* TEXT COLOR SMART LOGIC: If Bubble is used, text can remain Dark. 
+                      Wait, previous design coloured the TEXT. 
+                      User said "make sure font color has correct contrast".
+                      If we color text Green on White paper, it's usually fine, but yellow/light green is bad.
+                      Let's stick to Dark Text for readability, and rely on the Bubble for color?
+                      OR use the contrast logic to tint it safely?
+                      Actually, "Correct Contrast" implies White Text on Colored Backgrounds (like Buttons/Chips).
+                      On the white summary card, coloured text is risky.
+                      Let's use Dark Text #1C1C1E for maximum readability, 
+                      and make the Bubble larger/clearer?
+                      NO, let's keep coloured text but ensure it's not too light? 
+                      Actually, let's look at the CAROUSEL. That has full colored backgrounds.
+                  */}
+                  <span className="summary-value" style={{ color: item.color || '#333' }}>
+                    {item.logo || '💳'} {item.label}
                   </span>
                 </div>
                 <span style={{ color: '#666' }}> › </span>
@@ -241,7 +267,7 @@ function App() {
         )}
 
         {mode === 'edit' && (
-          /* 3D CAROUSEL (Simple List for now) */
+          /* 3D CAROUSEL */
           <div className="carousel-container" style={{ perspective: '1000px', height: '200px', position: 'relative' }}>
             {editOptions.map((opt, i) => {
               const offset = i - editIndex
@@ -251,6 +277,8 @@ function App() {
               const opacity = 1 - Math.abs(offset) * 0.5
 
               const bgColor = opt.color || '#333'
+              // USE CONTRAST HELPER
+              const fgColor = getContrastYIQ(bgColor)
 
               return (
                 <div key={i} style={{
@@ -258,19 +286,19 @@ function App() {
                   top: '50%', left: '50%',
                   transform: transform,
                   opacity: opacity,
-                  background: offset === 0 ? bgColor : '#333',
-                  color: 'white',
+                  background: bgColor,
+                  color: fgColor, // DYNAMIC CONTRAST
                   padding: '20px',
                   minWidth: '200px',
                   textAlign: 'center',
                   borderRadius: '12px',
-                  border: offset === 0 ? '2px solid #4CAF50' : '1px solid #555',
+                  border: offset === 0 ? '2px solid white' : '1px solid rgba(255,255,255,0.2)', // White border looks better on dark/colored
                   transition: 'all 0.2s ease-out',
                   zIndex: 10 - Math.abs(offset),
                   boxShadow: offset === 0 ? `0 10px 30px ${bgColor}66` : 'none'
                 }}>
                   <div style={{ fontSize: '32px', marginBottom: '5px' }}>{opt.logo || opt.icon}</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '20px', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '20px', textShadow: fgColor === 'white' ? '0 2px 4px rgba(0,0,0,0.5)' : 'none' }}>
                     {opt.name}
                   </div>
                 </div>

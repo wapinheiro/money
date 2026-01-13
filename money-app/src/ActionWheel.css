@@ -1,6 +1,4 @@
 .wheel-wrapper {
-    /* BACK TO FLOW: Relative Positioning */
-    /* Controlled by parent .controls-area flexbox */
     position: relative;
     right: auto;
     bottom: auto;
@@ -12,7 +10,6 @@
     margin-right: 0;
 
     margin-bottom: 80px;
-    /* Lifted 80px (~2cm) for clear visibility */
 
     /* Flex Centering for internal Button alignment */
     display: flex;
@@ -23,10 +20,7 @@
 }
 
 /* THE SPINNING PART */
-/* THE SPINNING PART */
-/* THE SPINNING PART */
 .wheel-container {
-    /* ... existing styles ... */
     position: absolute;
     top: 0;
     left: 0;
@@ -42,46 +36,64 @@
     z-index: 1;
 }
 
-/* ... solid disk ... */
-.solid-disk-overlay {
-    /* ... existing ... */
-    z-index: 5;
-    /* relative to container */
+/* --- THE GLOBAL TICKS OVERLAY --- */
+.safe-dial-ticks {
+    position: absolute;
+    top: 5%;
+    left: 5%;
+    width: 90%;
+    height: 90%;
+    border-radius: 50%;
+
+    /* FINAL TICKS: Visible White */
+    background-image: repeating-conic-gradient(transparent 0deg,
+            transparent 9deg,
+            rgba(255, 255, 255, 0.2) 9deg,
+            /* 20% Opacity White */
+            rgba(255, 255, 255, 0.2) 10deg
+            /* 1 deg thickness */
+        );
+
+    /* Soften the edges so ticks appear only near rim */
+    -webkit-mask-image: radial-gradient(circle, transparent 65%, black 70%);
+    mask-image: radial-gradient(circle, transparent 65%, black 70%);
+
     pointer-events: none;
-    /* PASS THROUGH CLICKS */
+    z-index: 6;
+    /* Back to normal layering */
+}
+
+/* ... solid disk (EDIT MODE ONLY) ... */
+.solid-disk-overlay {
+    position: absolute;
+    top: 5%;
+    left: 5%;
+    width: 90%;
+    height: 90%;
+    border-radius: 50%;
+    background: #222;
+    /* Dark base only (gradients moved to ticks) */
+
+    z-index: 4;
+    /* Below ticks (6) but above base */
+    pointer-events: none;
 }
 
 /* The Wedges */
-/* We use clip-path or simple absolute positioning to create slices */
-/* For 12 items, simple rotation is easier */
-/* The Wedges */
-/* New Geometry: Triangle Slices originating from Center */
 .wedge {
     position: absolute;
     top: 0;
     left: 50%;
-    /* GEOMETRY: 11 items. 360/11 = ~32.7deg.
-       Tan(16.35) * 160px * 2 = ~94px circumference.
-       Set to 92px to leave a 2px "Blue Line" gap. */
-    /* DYNAMIC WIDTH NOW HANDLED IN JS */
-    /* width: 92px; */
     height: 160px;
     /* Radius */
-
     transform-origin: bottom center;
-    /* DYNAMIC MARGIN NOW HANDLED IN JS */
-    /* margin-left: -46px; */
-    /* Half of width */
 
     pointer-events: none;
-    /* Let clicks pass through empty space */
-
-    /* No background on the container itself */
     display: flex;
     justify-content: center;
 }
 
-/* 1) Background Shape (The Yellow Cone) */
+/* 1) Background Shape (The Wedges) */
 .wedge-shape {
     position: absolute;
     top: 0;
@@ -89,8 +101,8 @@
     width: 100%;
     height: 100%;
 
-    background: #E0E0E0;
-    /* PLATINUM */
+    background: #2C2C2E;
+    /* DARK GREY (Pre-v1.39) */
 
     /* Triangle Geometry */
     clip-path: polygon(0 0, 100% 0, 50% 100%);
@@ -98,84 +110,47 @@
     z-index: 1;
 }
 
-/* 2) Touch Target & Content Container */
+/* ... touch target ... */
 .wedge-content-touch-target {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-
     display: flex;
     justify-content: center;
-
     z-index: 5;
-    /* Above background */
     pointer-events: auto;
-    /* Clickable */
-
-    /* CRITICAL FIX: Clip the touch area too! */
-    /* This prevents clicking the invisible overlapping corners of the rectangle */
     clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
 
-/* TOUCH FEEDBACK */
-/* When valid target is touched, light up the SHAPE sibling */
-/* Note: We can't select sibling via parent hover easily in CSS without :has or subtle structure */
-/* Easier way: Add :active to the target, and since it sits on top, maybe just change its own bg transparently? */
-/* Actually, let's just make the wedge-shape react if we can, OR simply make the touche target flash white */
-
 .wedge-content-touch-target:active {
-    background-color: rgba(255, 255, 255, 0.4);
-    /* Flash White on touch */
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* The Actual Text Number */
 .wedge-content {
-    /* Absolute positioning to place it DEAD CENTER of the "Rim Space" */
-    /* Moved from 45px to 15px to push it OUTWARD (towards the rim) */
     position: absolute;
     top: 15px;
 
     font-size: 38px;
-    /* Maximized for Visibility */
     font-weight: 700;
-    /* Extra Bold */
-    color: #000;
-    /* BLACK TEXT for Yellow Background */
-
-    /* Ensure no text wrapping if it gets tight */
+    color: #FFFFFF;
     white-space: nowrap;
-
-    /* Debug helper to see text center */
-    /* border: 1px solid red; */
 }
 
 .wedge:active {
     background: rgba(255, 255, 255, 0.1);
 }
 
-/* REMOVED ZEBRA STRIPING - All numbers should be consistent */
-/*
-.wedge:nth-child(even) .wedge-content {
-    color: #cccccc;
-}
-*/
-
-/* THE CENTER BUTTON (Fixed, does not spin) */
 /* THE CENTER BUTTON (Fixed, does not spin) */
 .center-btn {
-    /* BACKGROUND 3: GREEN CENTER (Unchanged) */
-    /* Since parent is Flex Center, we just set dimensions and z-index */
-    /* We maintain Absolute just in case, but rely on parent center */
     position: absolute;
-    /* Top/Left 50% + Translate is the gold standard for absolute centering */
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
 
     width: 150px;
-    /* Increased from 120px for wider inner touch targets */
     height: 150px;
     border-radius: 50%;
     background: var(--accent-color, #4CAF50);
@@ -195,29 +170,17 @@
 
 /* --- CONTEXT MODE (3 Items) --- */
 .context-wedge {
-    /* 3 Items = 120 degrees each */
-    /* Triangles are tricky here. Let's make them look like "Bubbles" or " Cards" */
-
-    /* Override standard wedge geometry */
     width: 260px;
-    /* Much wider chord calculation for 120deg? */
-    /* Actually for 120deg, we probably want to just visually represent them as sectors */
-    /* Let's try to reuse the wedge-shape but change color */
-
     margin-left: -130px;
-    /* Center it */
 }
 
 .context-wedge .wedge-shape {
-    background: #E0E0E0;
-    /* KEEP PLATINUM */
-    /* The Triangle Clip Path scales automatically with width/height */
+    background: #2C2C2E;
     clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
 
 .context-wedge .wedge-content {
     font-size: 20px;
-    /* Smaller font for words */
     top: 25px;
     display: flex;
     flex-direction: column;
@@ -228,34 +191,4 @@
     font-size: 12px;
     opacity: 0.7;
     margin-top: 5px;
-}
-
-/* SOLID DISK OVERLAY (Edit Mode) */
-.solid-disk-overlay {
-    position: absolute;
-    top: 5%;
-    left: 5%;
-    width: 90%;
-    height: 90%;
-    border-radius: 50%;
-    background: #222;
-    /* Dark base */
-
-    /* SAFE DIAL TICKS */
-    /* Creates distinct radial lines every 10 degrees */
-    background-image: repeating-conic-gradient(transparent 0deg,
-            transparent 9deg,
-            #444 9deg,
-            /* The Tick Color */
-            #444 10deg
-            /* 1 deg thickness */
-        );
-
-    /* Soften the edges so ticks appear only near rim */
-    -webkit-mask-image: radial-gradient(circle, transparent 60%, black 65%);
-    mask-image: radial-gradient(circle, transparent 60%, black 65%);
-
-    pointer-events: none;
-    /* Let touches pass through to container */
-    z-index: 5;
 }

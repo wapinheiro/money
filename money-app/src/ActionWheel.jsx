@@ -157,6 +157,10 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
             className={`wheel-container ${mode}`}
             style={{ transform: `rotate(${renderRotation}deg)` }}
         >
+            {/* 1. GLOBAL TICKS OVERLAY */}
+            <div className="safe-dial-ticks"></div>
+
+            {/* 2. MODE SPECIFIC CONTENT */}
             {mode === 'edit' ? (
                 <div className="solid-disk-overlay"></div>
             ) : (
