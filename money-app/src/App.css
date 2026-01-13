@@ -1,58 +1,128 @@
+/* --- THEME ENGINE --- */
 :root {
-  --bg-color: #2E004B;
-  /* Version v0.5: Deep Purple */
-  --text-color: #ffffff;
+  /* BASE VARIABLES (Default: Midnight) */
+  --bg-app: #F2F2F7;
+  /* Top Area Background */
+  --bg-controls: #2E004B;
+  /* Bottom Area Background */
+  --text-primary: #1C1C1E;
+  /* Main Text Color */
+  --text-secondary: #8E8E93;
+  /* Sub Text Color */
   --accent-color: #4CAF50;
+  /* Interaction Color (Green) */
+  --card-bg: #FFFFFF;
+  /* Summary Card Background */
+  --wheel-bg: #222222;
+  /* Wheel Container Background */
+  --wedge-bg: #2C2C2E;
+  /* Wedge Color */
+  --wedge-text: #FFFFFF;
+  /* Wedge Text Color */
+  --tick-color: rgba(255, 255, 255, 0.2);
+  --readout-color: #000000;
+}
+
+/* THEME: DAYLIGHT */
+[data-theme='daylight'] {
+  --bg-app: #FFFFFF;
+  --bg-controls: #F2F2F7;
+  --text-primary: #000000;
+  --readout-color: #000000;
+  --card-bg: #FFFFFF;
+  --wheel-bg: #E5E5EA;
+  /* Light Wheel */
+  --wedge-bg: #FFFFFF;
+  --wedge-text: #000000;
+  --tick-color: rgba(0, 0, 0, 0.1);
+  --accent-color: #007AFF;
+  /* Blue Accent */
+}
+
+/* THEME: OLED (Battery Saver) */
+[data-theme='oled'] {
+  --bg-app: #000000;
+  --bg-controls: #000000;
+  --text-primary: #FFFFFF;
+  --readout-color: #FFFFFF;
+  --card-bg: #1C1C1E;
+  --wheel-bg: #111111;
+  --wedge-bg: #333333;
+  --wedge-text: #FFFFFF;
+  --accent-color: #00FF00;
+  /* Neon Green */
+}
+
+/* THEME: SUNSET */
+[data-theme='sunset'] {
+  --bg-app: linear-gradient(to bottom, #FF9500, #FF5E3A);
+  --bg-controls: #2E004B;
+  --text-primary: #FFFFFF;
+  --readout-color: #FFFFFF;
+  --card-bg: rgba(255, 255, 255, 0.2);
+  /* Glassmorphism */
+  --wheel-bg: #4A0E4E;
+  --wedge-bg: #FF9500;
+  --wedge-text: #FFFFFF;
+  --accent-color: #FFD700;
+  /* Gold */
 }
 
 body {
   margin: 0;
-  background-color: var(--bg-color);
-  color: var(--text-color);
+  background: var(--bg-app);
+  /* Use background shorthand for gradients */
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow: hidden;
   user-select: none;
   /* GLOBAL SCROLL LOCK */
   overscroll-behavior: none;
   touch-action: none;
-  /* Disable panning everywhere by default? might be too aggressive */
 }
 
 .app-container {
   height: 100vh;
   /* Fallback */
   height: 100dvh;
-  /* Dynamic Viewport Height (The Real Fix) */
+  /* Dynamic Viewport Height */
   display: flex;
   flex-direction: column;
   position: relative;
+  transition: background 0.3s ease;
+  /* Smooth Theme Switch */
 
   /* Respect the Gesture Bar / Home Indicator */
   padding-bottom: env(safe-area-inset-bottom, 20px);
   box-sizing: border-box;
 }
 
-/* TOP SECTION: Grows to fill space, pushing content nicely */
+/* DETAILS AREA (Top Half) */
 .display-area {
   flex: 1;
-  /* Occupy all remaining height above the wheel */
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  /* Center vertically in this top space */
   align-items: center;
-  /* Center horizontally */
-  text-align: center;
+  justify-content: flex-start;
 
   width: 100%;
-  overflow: hidden;
-  /* Prevent spillover */
+  padding-top: 10px;
+  /* Aggressively reduced */
+  padding-bottom: 10px;
 
-  /* VISUAL DISTINCTION: Light Grey Mode */
-  background-color: #F2F2F7;
-  /* Apple System Grey 6 */
-  color: #1C1C1E;
-  /* Dark Text */
+  /* CALCULATOR SCREEN BEHAVIOR */
+  overflow: hidden;
+  /* No Scrolling */
+  touch-action: none;
+  pointer-events: none;
+  /* No Touch Interaction */
+
+  z-index: 5;
+  position: relative;
+
+  /* THEME VARS */
+  background: var(--bg-app);
+  color: var(--text-primary);
 
   /* Separator */
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
@@ -61,18 +131,15 @@ body {
 /* BOTTOM SECTION: Sits at the bottom, holds the wheel */
 .controls-area {
   flex: 0 0 auto;
-  /* Do not grow, just fit the content */
   width: 100%;
-
-  /* Layout the Wheel inside */
   display: flex;
   justify-content: flex-end;
-  /* ALIGN RIGHT (Right-Handed) */
   padding-bottom: 20px;
-  /* Internal spacing from bottom edge */
+  padding-top: 20px;
+  /* Reduced air gap */
 
-  /* AIR GAP: Increased to 60px to force separation */
-  padding-top: 60px;
+  background: var(--bg-controls);
+  /* THEMED BACKGROUND */
 }
 
 .readout {
@@ -80,8 +147,8 @@ body {
   font-weight: 200;
   display: flex;
   align-items: center;
-  color: #000000;
-  /* FORCE BLACK TEXT */
+  color: var(--readout-color);
+  /* THEMED */
 }
 
 .currency {
@@ -92,12 +159,14 @@ body {
 
 /* TRANSACTION SUMMARY CARD */
 .summary-card {
-  /* White Card on Grey Background */
-  background: #FFFFFF;
+  /* THEME VARS */
+  background: var(--card-bg);
   border-radius: 20px;
-  padding: 30px;
-  width: 80%;
-  margin-bottom: 20px;
+  padding: 20px;
+  /* Compact padding */
+  width: 85%;
+  /* Slightly wider */
+  margin-bottom: 10px;
   border: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
   animation: fadeIn 0.3s ease-out;
@@ -107,9 +176,9 @@ body {
   font-size: 48px;
   font-weight: bold;
   margin-bottom: 20px;
-  color: #4CAF50;
+  color: var(--accent-color);
+  /* THEMED */
   text-shadow: none;
-  /* No glow on light mode */
 }
 
 .summary-row {
@@ -117,17 +186,11 @@ body {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  /* Darker separator */
   padding: 12px 0;
 }
 
-.summary-row:last-child {
-  border-bottom: none;
-}
-
 .summary-label {
-  color: #8E8E93;
-  /* System Grey */
+  color: var(--text-secondary);
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -136,8 +199,7 @@ body {
 .summary-value {
   font-size: 18px;
   font-weight: 600;
-  color: #1C1C1E;
-  /* Dark Text */
+  color: var(--text-primary);
 }
 
 @keyframes fadeIn {
