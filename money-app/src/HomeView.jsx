@@ -3,21 +3,58 @@ import { db } from './db'
 import './App.css'
 
 export default function HomeView({ onOpenCapture, onOpenSettings }) {
-    const [recentTxs, setRecentTxs] = useState([])
-    const [budgetLeft, setBudgetLeft] = useState(1240.00) // Mock Budget
+    const [groupedData, setGroupedData] = useState([])
+    const [budgetLeft, setBudgetLeft] = useState(2320.01) // Mock Budget/Calculated
+    const [expandedCat, setExpandedCat] = useState(null)
+    const [latestCatName, setLatestCatName] = useState(null)
 
-    // Live Query for recent transactions
+    // Live Query
     useEffect(() => {
-        fetchRecent()
+        fetchAndGroup()
     }, [])
 
-    const fetchRecent = async () => {
-        try {
-            const txs = await db.transactions.toArray()
-            setRecentTxs(txs.reverse().slice(0, 10))
-        } catch (e) {
-            console.error("Failed to load home", e)
-        }
+    const fetchAndGroup = async () => {
+        const txs = await db.transactions.toArray()
+        const cats = await db.categories.toArray()
+
+        if (txs.length === 0) return
+
+        // 1. Find Global Latest for Green Dot
+        // Sort DESC
+        txs.sort((a, b) => b.date - a.date)
+        const latestTx = txs[0]
+        setLatestCatName(latestTx.category)
+
+        // 2. Group By Category
+        const groups = {}
+        txs.forEach(tx => {
+            if (!groups[tx.category]) {
+                // Find category meta
+                const catMeta = cats.find(c => c.name === tx.category) || { icon: '📂', color: '#666' }
+                groups[tx.category] = {
+                    name: tx.category,
+                    icon: catMeta.icon,
+                    color: catMeta.color,
+                    total: 0,
+                    count: 0,
+                    transactions: [],
+                    latestDate: new Date(0) // Epoch
+                }
+            }
+            const g = groups[tx.category]
+            g.total += tx.amount
+            g.count += 1
+            g.transactions.push(tx)
+            if (tx.date > g.latestDate) g.latestDate = tx.date
+        })
+
+        // 3. Convert to Array & Sort by Latest Activity
+        const groupArray = Object.values(groups).sort((a, b) => b.latestDate - a.latestDate)
+        setGroupedData(groupArray)
+    }
+
+    const toggleExpand = (catName) => {
+        setExpandedCat(expandedCat === catName ? null : catName)
     }
 
     return (
@@ -61,42 +98,91 @@ export default function HomeView({ onOpenCapture, onOpenSettings }) {
                 </div>
             </div>
 
-            {/* RECENT ACTIVITY LIST */}
+            {/* CATEGORY GROUPS LIST */}
             <div style={{
                 flex: 1,
                 width: '100%',
-                background: 'var(--bg-controls)', /* Contrast background for list? Or keep seamless? */
                 background: 'rgba(128,128,128, 0.05)',
                 borderTopLeftRadius: '30px', borderTopRightRadius: '30px',
                 padding: '20px', boxSizing: 'border-box',
-                overflowY: 'auto'
+                overflowY: 'auto',
+                paddingBottom: '120px' // Space for FAB
             }}>
-                <div style={{ fontWeight: '600', marginBottom: '15px', color: 'var(--text-secondary)' }}>Recent Activity</div>
+                <div style={{ fontWeight: '600', marginBottom: '15px', color: 'var(--text-secondary)' }}>Spending by Category</div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {recentTxs.length === 0 && <div style={{ opacity: 0.5, textAlign: 'center' }}>No transactions yet</div>}
+                    {groupedData.length === 0 && <div style={{ opacity: 0.5, textAlign: 'center' }}>No transactions yet</div>}
 
-                    {recentTxs.map(tx => (
-                        <div key={tx.id} style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            padding: '15px', background: 'var(--card-bg)', borderRadius: '16px',
-                            boxShadow: '0 2px 5px rgba(0,0,0,0.02)'
+                    {groupedData.map(group => (
+                        <div key={group.name} style={{
+                            background: 'var(--card-bg)', borderRadius: '16px',
+                            boxShadow: '0 2px 5px rgba(0,0,0,0.02)',
+                            overflow: 'hidden',
+                            transition: 'all 0.2s'
                         }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                {/* Icon Placeholder */}
-                                <div style={{
-                                    width: '40px', height: '40px', borderRadius: '50%',
-                                    background: 'var(--bg-app)', display: 'flex', justifyContent: 'center', alignItems: 'center',
-                                    fontSize: '20px'
-                                }}>
-                                    💳
+                            {/* CATEGORY HEADER */}
+                            <div
+                                onClick={() => toggleExpand(group.name)}
+                                style={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    padding: '15px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    {/* Icon Bubble */}
+                                    <div style={{
+                                        width: '40px', height: '40px', borderRadius: '50%',
+                                        background: group.color + '22', // Low opacity bg
+                                        color: group.color,
+                                        display: 'flex', justifyContent: 'center', alignItems: 'center',
+                                        fontSize: '20px',
+                                        position: 'relative'
+                                    }}>
+                                        {group.icon}
+
+                                        {/* GREEN DOT INDICATOR */}
+                                        {latestCatName === group.name && (
+                                            <div style={{
+                                                position: 'absolute', top: '-2px', right: '-2px',
+                                                width: '10px', height: '10px',
+                                                borderRadius: '50%',
+                                                backgroundColor: '#00E676', // Vivid Green
+                                                border: '2px solid var(--card-bg)', // Cutout effect
+                                                boxShadow: '0 0 5px #00E676'
+                                            }}></div>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{group.name}</span>
+                                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{group.count} transactions</span>
+                                    </div>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{tx.merchant}</span>
-                                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{new Date(tx.date).toLocaleDateString()}</span>
-                                </div>
+                                <div style={{ fontWeight: '600', fontSize: '16px' }}>-${group.total.toFixed(2)}</div>
                             </div>
-                            <div style={{ fontWeight: '600' }}>-${tx.amount.toFixed(2)}</div>
+
+                            {/* ACCORDION CONTENT (Transactions) */}
+                            {expandedCat === group.name && (
+                                <div style={{
+                                    borderTop: '1px solid rgba(128,128,128,0.1)',
+                                    padding: '0 15px 15px 15px',
+                                    background: 'rgba(0,0,0,0.02)'
+                                }}>
+                                    {group.transactions.map((tx, i) => (
+                                        <div key={i} style={{
+                                            display: 'flex', justifyContent: 'space-between',
+                                            padding: '10px 0', fontSize: '14px',
+                                            borderBottom: i === group.transactions.length - 1 ? 'none' : '1px solid rgba(128,128,128,0.05)'
+                                        }}>
+                                            <div style={{ color: 'var(--text-secondary)' }}>
+                                                {new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                            </div>
+                                            <div style={{ flex: 1, marginLeft: '15px' }}>{tx.merchant}</div>
+                                            <div style={{ fontWeight: '500' }}>{tx.amount.toFixed(2)}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

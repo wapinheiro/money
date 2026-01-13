@@ -164,9 +164,9 @@ export default function CaptureView({ onClose }) {
             const prediction = await predictContext()
             setContextItems(prediction)
 
-            // TRANSITION TO REVIEW NAV (Default focus: Merchant)
+            // TRANSITION TO REVIEW NAV (Default focus: SAVE)
             setMode('review_nav')
-            setReviewFocus(1)
+            setReviewFocus(4)
             setStatusMsg('Review Details')
             return
         }
