@@ -4,7 +4,9 @@ export default function SettingsView({
     onBack,
     currentTheme, onSetTheme,
     currentLayout, onSetLayout,
-    currentHand, onSetHand
+    currentHand, onSetHand,
+    ergoAutoSwitch, onSetErgoAutoSwitch,
+    defaultInput, onSetDefaultInput
 }) {
 
     // --- GESTURE HANDLER ---
@@ -121,9 +123,40 @@ export default function SettingsView({
                     <ButtonGroup items={layouts} current={currentLayout} onSelect={onSetLayout} />
                 </div>
 
-                <div>
+                <div style={{ marginBottom: '20px' }}>
                     <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-primary)' }}>Handedness</div>
                     <ButtonGroup items={hands} current={currentHand} onSelect={onSetHand} />
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-primary)' }}>Default Input</div>
+                    <ButtonGroup
+                        items={[{ id: 'wheel', name: 'Wheel 🎡' }, { id: 'keypad', name: 'Keypad ⌨️' }]}
+                        current={defaultInput}
+                        onSelect={onSetDefaultInput}
+                    />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+                    <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '600' }}>Auto-Switch to Direct Edit</span>
+                    <button
+                        onClick={() => onSetErgoAutoSwitch(!ergoAutoSwitch)}
+                        style={{
+                            width: '50px', height: '30px', borderRadius: '15px',
+                            background: ergoAutoSwitch ? 'var(--accent-color)' : '#444',
+                            position: 'relative', border: 'none', transition: 'background 0.3s'
+                        }}
+                    >
+                        <div style={{
+                            width: '24px', height: '24px', borderRadius: '50%', background: 'white',
+                            position: 'absolute', top: '3px',
+                            left: ergoAutoSwitch ? '23px' : '3px',
+                            transition: 'left 0.3s'
+                        }}></div>
+                    </button>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                    Automatically switch to "Direct Edit" (Keypad) mode when reviewing details.
                 </div>
             </div>
 

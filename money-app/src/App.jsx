@@ -14,6 +14,8 @@ function App() {
   // ERGONOMICS STATE
   const [layout, setLayout] = useState('standard') // 'standard' | 'thumb' | 'visual'
   const [hand, setHand] = useState('center') // 'center' | 'right' | 'left'
+  const [ergoAutoSwitch, setErgoAutoSwitch] = useState(false) // Auto-switch to TH (Keypad) for Review
+  const [defaultInput, setDefaultInput] = useState('wheel') // 'wheel' | 'keypad'
 
   // Apply Theme
   useEffect(() => {
@@ -71,6 +73,10 @@ function App() {
           onSetLayout={setLayout}
           currentHand={hand}
           onSetHand={setHand}
+          ergoAutoSwitch={ergoAutoSwitch}
+          onSetErgoAutoSwitch={setErgoAutoSwitch}
+          defaultInput={defaultInput}
+          onSetDefaultInput={setDefaultInput}
           onBack={() => setView('home')}
         />
       )}
@@ -78,6 +84,8 @@ function App() {
       {view === 'capture' && (
         <CaptureView
           onClose={() => setView('home')} // Returns to home after save/cancel
+          ergoAutoSwitch={ergoAutoSwitch}
+          defaultInput={defaultInput}
         />
       )}
     </div>

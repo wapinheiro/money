@@ -176,6 +176,9 @@ body {
   transform: scale(var(--summary-scale, 1));
   transform-origin: top center;
   transition: transform 0.3s ease;
+
+  /* RE-ENABLE CLICKS FOR TH MODE */
+  pointer-events: auto;
 }
 
 .summary-amount {

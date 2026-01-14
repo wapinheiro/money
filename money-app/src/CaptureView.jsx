@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { db } from './db'
 import ActionWheel from './ActionWheel'
+import Keypad from './Keypad' // NEW
 import './ActionWheel.css'
 import './App.css'
 
@@ -33,9 +34,12 @@ function getContrastYIQ(hexcolor) {
     return (yiq >= 128) ? 'black' : 'white';
 }
 
-export default function CaptureView({ onClose }) {
+export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultInput = 'wheel' }) {
     const [amount, setAmount] = useState('0.00')
-    const [mode, setMode] = useState('numpad') // 'numpad' | 'context' | 'edit'
+    const [mode, setMode] = useState('numpad') // 'numpad' | 'context' | 'edit' | 'review_nav'
+    // INPUT METHOD: 'wheel' | 'keypad'
+    const [inputMethod, setInputMethod] = useState(defaultInput)
+
     const [statusMsg, setStatusMsg] = useState('Ready')
     const [contextItems, setContextItems] = useState([])
 
@@ -168,6 +172,11 @@ export default function CaptureView({ onClose }) {
             setMode('review_nav')
             setReviewFocus(4)
             setStatusMsg('Review Details')
+
+            // AUTO-SWITCH TO TH (KEYPAD/DIRECT EDIT) IF ENABLED
+            if (ergoAutoSwitch) {
+                setInputMethod('keypad')
+            }
             return
         }
 
@@ -236,6 +245,20 @@ export default function CaptureView({ onClose }) {
             setStatusMsg('Updated')
             return
         }
+    }
+
+    // HELPER: Confirm Selection (Direct Click)
+    const handleOptionClick = (option) => {
+        const newContext = contextItems.map(item => {
+            if (item.value === editTarget) {
+                return { ...item, label: option.name, logo: option.logo || option.icon, color: option.color, meta: option }
+            }
+            return item
+        })
+        setContextItems(newContext)
+        setMode('review_nav')
+        setEditTarget(null)
+        setStatusMsg('Updated')
     }
 
     const currentItems = mode === 'numpad' ? NUMPAD_ITEMS : contextItems
@@ -318,7 +341,7 @@ export default function CaptureView({ onClose }) {
                     position: 'absolute', top: '10px', left: '20px',
                     color: 'var(--text-secondary)', fontSize: '12px',
                     zIndex: 20, pointerEvents: 'none', opacity: 0.5
-                }}>v1.44 Swipe Back</div>
+                }}>v1.72 Grid Fix</div>
 
                 {mode === 'numpad' && (
                     <div className="readout">
@@ -331,13 +354,20 @@ export default function CaptureView({ onClose }) {
                 {(mode === 'review_nav' || mode === 'edit') && (
                     <div className="summary-card">
 
-                        {/* AMOUNT ROW (Editable now) */}
+                        {/* AMOUNT ROW (Editable only in Keypad Mode) */}
                         <div
                             className="summary-amount"
+                            onClick={() => {
+                                if (inputMethod === 'keypad') {
+                                    setEditTarget('amount')
+                                    setMode('numpad')
+                                }
+                            }}
                             style={{
                                 ...getHighlightStyle('amount'),
                                 padding: '5px 10px', borderRadius: '12px', transition: 'all 0.2s',
-                                display: 'inline-block'
+                                display: 'inline-block',
+                                cursor: inputMethod === 'keypad' ? 'pointer' : 'default'
                             }}
                         >
                             ${amount}
@@ -356,9 +386,35 @@ export default function CaptureView({ onClose }) {
                             <div
                                 className="summary-row"
                                 key={i}
+                                onClick={async () => {
+                                    if (inputMethod !== 'keypad') return
+
+                                    // DIRECT EDIT LOGIC
+                                    setEditTarget(item.value)
+                                    setMode('edit')
+                                    setStatusMsg(`Select ${item.subLabel}`)
+
+                                    // Load Options & Deduplicate
+                                    let options = []
+                                    if (item.value === 'merchant') options = await db.merchants.toArray()
+                                    else if (item.value === 'category') options = await db.categories.toArray()
+                                    else if (item.value === 'account') options = await db.accounts.toArray()
+
+                                    // Simple Dedupe by Name
+                                    const seen = new Set()
+                                    options = options.filter(o => {
+                                        if (seen.has(o.name)) return false
+                                        seen.add(o.name)
+                                        return true
+                                    })
+
+                                    setEditOptions(options)
+                                    setEditIndex(0)
+                                }}
                                 style={{
                                     ...getHighlightStyle(item.value),
-                                    transition: 'all 0.2s', paddingLeft: '5px', paddingRight: '5px', borderRadius: '8px'
+                                    transition: 'all 0.2s', paddingLeft: '5px', paddingRight: '5px', borderRadius: '8px',
+                                    cursor: inputMethod === 'keypad' ? 'pointer' : 'default'
                                 }}
                             >
                                 <span className="summary-label">{item.subLabel}</span>
@@ -384,8 +440,8 @@ export default function CaptureView({ onClose }) {
                     </div>
                 )}
 
-                {mode === 'edit' && (
-                    /* 3D CAROUSEL (Absolute Overlay) */
+                {(mode === 'edit' && inputMethod === 'wheel') && (
+                    /* 3D CAROUSEL (Absolute Overlay) - WHEEL ONLY */
                     <div className="carousel-container" style={{
                         position: 'absolute',
                         bottom: '20px',
@@ -433,30 +489,133 @@ export default function CaptureView({ onClose }) {
                 <div style={{ color: 'lime', height: '20px', marginTop: '20px' }}>{statusMsg}</div>
             </div>
 
-            {/* ACTION WHEEL */}
-            <div className="controls-area">
-                <div className="wheel-wrapper">
-                    <ActionWheel
-                        mode={mode}
-                        items={currentItems}
-                        onInput={handleDigit}
-                        onSave={handleCenterClick}
-                        onSpinChange={handleSpinChange}
-                    />
+            {/* ACTION WHEEL OR KEYPAD */}
+            <div className="controls-area" style={{ position: 'relative' }}>
+
+                {/* INPUT METHOD TOGGLE (Available in Numpad AND Review Nav) */}
+                {(mode === 'numpad' || mode === 'review_nav') && (
                     <button
-                        className="center-btn"
-                        onClick={handleCenterClick}
-                        onTouchStart={handleTouchStart}
-                        onTouchEnd={handleTouchEnd}
+                        onClick={() => setInputMethod(prev => prev === 'wheel' ? 'keypad' : 'wheel')}
                         style={{
-                            background: (mode === 'review_nav' && NAV_FIELDS[reviewFocus] === 'save') ? 'var(--accent-color)' :
-                                (mode === 'review_nav' && NAV_FIELDS[reviewFocus] !== 'save') ? '#444' :
-                                    'var(--accent-color)'
+                            position: 'absolute',
+                            bottom: '20px',
+                            right: '25px',
+                            width: '50px',
+                            height: '50px',
+                            borderRadius: '50%',
+                            background: 'rgba(255,255,255,0.1)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            color: 'white',
+                            fontSize: '24px',
+                            cursor: 'pointer',
+                            zIndex: 20
                         }}
                     >
-                        {getButtonLabel()}
+                        {inputMethod === 'wheel' ? '⌨️' : '🎡'}
                     </button>
-                </div>
+                )}
+
+                {(mode === 'numpad' && inputMethod === 'keypad') ? (
+                    <div style={{ paddingBottom: '40px', width: '100%', display: 'flex', justifyContent: 'center' }}>
+                        <Keypad
+                            onDigit={handleDigit}
+                            onDelete={() => handleDigit({ value: 'del' })}
+                        />
+                        {/* STANDALONE NEXT BUTTON */}
+                        <button
+                            onClick={handleCenterClick}
+                            style={{
+                                position: 'absolute',
+                                bottom: '20px',
+                                right: '50%', transform: 'translateX(50%)',
+                                width: '80px', height: '80px', borderRadius: '50%',
+                                background: 'var(--accent-color)',
+                                border: '4px solid #1a1a1a',
+                                color: 'white', fontWeight: 'bold',
+                                zIndex: 15,
+                                fontSize: '16px'
+                            }}
+                        >
+                            NEXT
+                        </button>
+                    </div>
+                )
+
+                    /* TH REVIEW MODE (Direct Edit + Big Save Button) */
+                    : (mode === 'review_nav' && inputMethod === 'keypad') ? (
+                        <div style={{ paddingBottom: '40px', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                            <button
+                                onClick={handleCenterClick}
+                                style={{
+                                    width: '120px', height: '120px', borderRadius: '50%',
+                                    background: 'var(--accent-color)',
+                                    border: '4px solid #1a1a1a',
+                                    color: 'white', fontWeight: 'bold',
+                                    zIndex: 15,
+                                    fontSize: '24px',
+                                    boxShadow: '0 5px 20px rgba(76, 175, 80, 0.4)'
+                                }}
+                            >
+                                SAVE
+                            </button>
+                        </div>
+                    )
+
+                        /* TH EDIT MODE (GRID SELECTION) */
+                        : (mode === 'edit' && inputMethod === 'keypad') ? (
+                            <div style={{
+                                width: '100%', height: '100%',
+                                padding: '10px 20px 40px 20px',
+                                display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px',
+                                overflowY: 'auto', alignContent: 'start'
+                            }}>
+                                {editOptions.map((opt, i) => (
+                                    <button key={i} onClick={() => handleOptionClick(opt)} style={{
+                                        background: opt.color ? `${opt.color}33` : '#333', // Low opacity background
+                                        border: `2px solid ${opt.color || '#555'}`,
+                                        color: 'var(--text-primary)',
+                                        borderRadius: '12px', fontSize: '16px', fontWeight: 'bold',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                        padding: '15px', minHeight: '80px'
+                                    }}>
+                                        <div style={{ fontSize: '28px', marginBottom: '5px' }}>{opt.logo || opt.icon}</div>
+                                        {opt.name}
+                                    </button>
+                                ))}
+                                <button onClick={() => setMode('review_nav')} style={{
+                                    gridColumn: 'span 2', background: '#333', color: 'white',
+                                    border: '1px solid #555', borderRadius: '12px', padding: '15px'
+                                }}>
+                                    CANCEL
+                                </button>
+                            </div>
+                        )
+
+                            /* WHEEL MODE (Default) */
+                            : (
+                                <div className="wheel-wrapper">
+                                    <ActionWheel
+                                        mode={mode}
+                                        items={currentItems}
+                                        onInput={handleDigit}
+                                        onSave={handleCenterClick}
+                                        onSpinChange={handleSpinChange}
+                                    />
+                                    <button
+                                        className="center-btn"
+                                        onClick={handleCenterClick}
+                                        onTouchStart={handleTouchStart}
+                                        onTouchEnd={handleTouchEnd}
+                                        style={{
+                                            background: (mode === 'review_nav' && NAV_FIELDS[reviewFocus] === 'save') ? 'var(--accent-color)' :
+                                                (mode === 'review_nav' && NAV_FIELDS[reviewFocus] !== 'save') ? '#444' :
+                                                    'var(--accent-color)'
+                                        }}
+                                    >
+                                        {getButtonLabel()}
+                                    </button>
+                                </div>
+                            )}
             </div>
         </div>
     )
