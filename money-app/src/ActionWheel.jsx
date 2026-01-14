@@ -31,7 +31,7 @@ export default function ActionWheel({ items = [], onInput, mode = 'numpad', onSp
     const [renderRotation, setRenderRotation] = useState(0)
 
     // CONSTANTS
-    const TICK_THRESHOLD = 15 // REDUCED: 15 degrees = ~4cm drag. Much snappier.
+    const TICK_THRESHOLD = 25 // REDUCED SENSITIVITY: 25 degrees. Heavier feel.
 
     // Helper: Get Angle
     const getAngle = (clientX, clientY, rect) => {
