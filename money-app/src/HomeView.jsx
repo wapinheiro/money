@@ -2,46 +2,59 @@ import { useState, useEffect } from 'react'
 import { db } from './db'
 import './App.css'
 
-export default function HomeView({ onOpenCapture, onOpenSettings }) {
+export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'category' }) {
+    // Local Tab State (Initialized with Default)
+    const [activeTab, setActiveTab] = useState(grouping)
+
     const [groupedData, setGroupedData] = useState([])
     const [budgetLeft, setBudgetLeft] = useState(2320.01) // Mock Budget/Calculated
     const [expandedCat, setExpandedCat] = useState(null)
     const [latestCatName, setLatestCatName] = useState(null)
 
-    // Live Query
+    // Sync if Default changes
+    useEffect(() => {
+        setActiveTab(grouping)
+    }, [grouping])
+
+    // Live Query based on Active Tab
     useEffect(() => {
         fetchAndGroup()
-    }, [])
+    }, [activeTab]) // Re-run when tab changes
 
     const fetchAndGroup = async () => {
         const txs = await db.transactions.toArray()
-        const cats = await db.categories.toArray()
+
+        // Fetch Metadata based on Active Tab
+        let metadata = []
+        if (activeTab === 'category') metadata = await db.categories.toArray()
+        else if (activeTab === 'account') metadata = await db.accounts.toArray()
 
         if (txs.length === 0) return
 
-        // 1. Find Global Latest for Green Dot
-        // Sort DESC
+        // 1. Find Global Latest (for dot)
         txs.sort((a, b) => b.date - a.date)
         const latestTx = txs[0]
-        setLatestCatName(latestTx.category)
+        setLatestCatName(activeTab === 'category' ? latestTx.category : latestTx.account)
 
-        // 2. Group By Category
+        // 2. Group By Field
         const groups = {}
         txs.forEach(tx => {
-            if (!groups[tx.category]) {
-                // Find category meta
-                const catMeta = cats.find(c => c.name === tx.category) || { icon: '📂', color: '#666' }
-                groups[tx.category] = {
-                    name: tx.category,
-                    icon: catMeta.icon,
-                    color: catMeta.color,
+            const key = activeTab === 'category' ? tx.category : tx.account
+
+            if (!groups[key]) {
+                // Find meta
+                const meta = metadata.find(m => m.name === key) || { icon: '📦', color: '#666' }
+                groups[key] = {
+                    name: key,
+                    icon: meta.icon || (activeTab === 'account' ? '💳' : '📂'),
+                    color: meta.color || '#666',
                     total: 0,
                     count: 0,
                     transactions: [],
-                    latestDate: new Date(0) // Epoch
+                    latestDate: new Date(0)
                 }
             }
-            const g = groups[tx.category]
+            const g = groups[key]
             g.total += tx.amount
             g.count += 1
             g.transactions.push(tx)
@@ -108,7 +121,33 @@ export default function HomeView({ onOpenCapture, onOpenSettings }) {
                 overflowY: 'auto',
                 paddingBottom: '120px' // Space for FAB
             }}>
-                <div style={{ fontWeight: '600', marginBottom: '15px', color: 'var(--text-secondary)' }}>Spending by Category</div>
+                {/* TABS (Segmented Control) */}
+                <div style={{
+                    display: 'flex', background: 'rgba(128,128,128,0.1)',
+                    borderRadius: '12px', padding: '4px', marginBottom: '20px'
+                }}>
+                    {[
+                        // Dynamic Order: Default First
+                        grouping === 'category' ? { id: 'category', label: 'Category' } : { id: 'account', label: 'Account' },
+                        grouping === 'category' ? { id: 'account', label: 'Account' } : { id: 'category', label: 'Category' }
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            style={{
+                                flex: 1, padding: '8px', borderRadius: '10px',
+                                border: 'none', cursor: 'pointer',
+                                background: activeTab === tab.id ? 'var(--card-bg)' : 'transparent',
+                                color: activeTab === tab.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                fontWeight: activeTab === tab.id ? '600' : '400',
+                                boxShadow: activeTab === tab.id ? '0 2px 5px rgba(0,0,0,0.05)' : 'none',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {groupedData.length === 0 && <div style={{ opacity: 0.5, textAlign: 'center' }}>No transactions yet</div>}

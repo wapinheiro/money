@@ -328,6 +328,18 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
         return 'EDIT'
     }
 
+    // BACK ACTION
+    const handleBack = () => {
+        if (mode === 'edit') {
+            setMode('review_nav')
+            setEditTarget(null)
+        } else if (mode === 'review_nav') {
+            setMode('numpad')
+        } else {
+            if (onClose) onClose()
+        }
+    }
+
     return (
         <div
             className="capture-view"
@@ -336,15 +348,37 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
             {/* DETAILS AREA */}
             <div className="display-area">
 
+                {/* NAVIGATION BUTTON (Back / Close) - TH MODE ONLY */}
+                {inputMethod === 'keypad' && (
+                    <button
+                        onClick={handleBack}
+                        style={{
+                            position: 'absolute', top: '20px', left: '20px',
+                            background: 'var(--card-bg)', // Solid background
+                            border: '2px solid rgba(128,128,128,0.2)',
+                            borderRadius: '50%',
+                            width: '50px', height: '50px', // Larger
+                            color: 'var(--text-primary)', // High contrast
+                            fontSize: '24px', fontWeight: 'bold',
+                            zIndex: 100, cursor: 'pointer',
+                            pointerEvents: 'auto', // FIX: Enable Clicks
+                            display: 'flex', justifyContent: 'center', alignItems: 'center',
+                            boxShadow: '0 4px 10px rgba(0,0,0,0.15)' // Prominent Shadow
+                        }}
+                    >
+                        {mode === 'numpad' ? '✕' : '←'}
+                    </button>
+                )}
+
                 {/* VERSION LABEL */}
                 <div style={{
-                    position: 'absolute', top: '10px', left: '20px',
-                    color: 'var(--text-secondary)', fontSize: '12px',
+                    position: 'absolute', top: '10px', right: '20px', // Moved to Right
+                    color: 'var(--text-secondary)', fontSize: '10px',
                     zIndex: 20, pointerEvents: 'none', opacity: 0.5
-                }}>v1.72 Grid Fix</div>
+                }}>v1.77 Style Match</div>
 
                 {mode === 'numpad' && (
-                    <div className="readout">
+                    <div className="readout" style={{ color: 'var(--accent-color)', fontWeight: 'normal' }}>
                         <span className="currency">$</span>
                         <span className="amount">{amount}</span>
                     </div>
@@ -366,8 +400,9 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                             style={{
                                 ...getHighlightStyle('amount'),
                                 padding: '5px 10px', borderRadius: '12px', transition: 'all 0.2s',
-                                display: 'inline-block',
-                                cursor: inputMethod === 'keypad' ? 'pointer' : 'default'
+                                display: 'block', width: '100%', textAlign: 'center', // CENTERED
+                                cursor: inputMethod === 'keypad' ? 'pointer' : 'default',
+                                color: 'var(--accent-color)', fontWeight: 'normal' // Green, Regular
                             }}
                         >
                             ${amount}

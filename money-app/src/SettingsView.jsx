@@ -6,7 +6,8 @@ export default function SettingsView({
     currentLayout, onSetLayout,
     currentHand, onSetHand,
     ergoAutoSwitch, onSetErgoAutoSwitch,
-    defaultInput, onSetDefaultInput
+    defaultInput, onSetDefaultInput,
+    homeGrouping, onSetHomeGrouping
 }) {
 
     // --- GESTURE HANDLER ---
@@ -157,6 +158,15 @@ export default function SettingsView({
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
                     Automatically switch to "Direct Edit" (Keypad) mode when reviewing details.
+                </div>
+
+                <div style={{ marginBottom: '20px', marginTop: '20px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-primary)' }}>Home Screen Grouping</div>
+                    <ButtonGroup
+                        items={[{ id: 'category', name: 'By Category 📂' }, { id: 'account', name: 'By Account 💳' }]}
+                        current={homeGrouping}
+                        onSelect={onSetHomeGrouping}
+                    />
                 </div>
             </div>
 

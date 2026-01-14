@@ -14,8 +14,9 @@ function App() {
   // ERGONOMICS STATE
   const [layout, setLayout] = useState('standard') // 'standard' | 'thumb' | 'visual'
   const [hand, setHand] = useState('center') // 'center' | 'right' | 'left'
-  const [ergoAutoSwitch, setErgoAutoSwitch] = useState(false) // Auto-switch to TH (Keypad) for Review
+  const [ergoAutoSwitch, setErgoAutoSwitch] = useState(true) // Auto-switch to TH (Keypad) for Review (Default: TRUE)
   const [defaultInput, setDefaultInput] = useState('wheel') // 'wheel' | 'keypad'
+  const [homeGrouping, setHomeGrouping] = useState('category') // 'category' | 'account'
 
   // Apply Theme
   useEffect(() => {
@@ -62,6 +63,7 @@ function App() {
         <HomeView
           onOpenCapture={() => setView('capture')}
           onOpenSettings={() => setView('settings')}
+          grouping={homeGrouping}
         />
       )}
 
@@ -77,6 +79,8 @@ function App() {
           onSetErgoAutoSwitch={setErgoAutoSwitch}
           defaultInput={defaultInput}
           onSetDefaultInput={setDefaultInput}
+          homeGrouping={homeGrouping}
+          onSetHomeGrouping={setHomeGrouping}
           onBack={() => setView('home')}
         />
       )}
