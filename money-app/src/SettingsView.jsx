@@ -1,6 +1,11 @@
 import React from 'react'
 
-export default function SettingsView({ onBack, currentTheme, onSetTheme }) {
+export default function SettingsView({
+    onBack,
+    currentTheme, onSetTheme,
+    currentLayout, onSetLayout,
+    currentHand, onSetHand
+}) {
 
     // --- GESTURE HANDLER ---
     const [touchStart, setTouchStart] = React.useState(null)
@@ -31,6 +36,38 @@ export default function SettingsView({ onBack, currentTheme, onSetTheme }) {
         { id: 'sunset', name: 'Sunset', color: '#FF9500' },
     ]
 
+    const layouts = [
+        { id: 'standard', name: 'Standard' },
+        { id: 'thumb', name: 'Big Wheel' },
+        { id: 'visual', name: 'Big Display' },
+    ]
+
+    const hands = [
+        { id: 'left', name: 'Left' },
+        { id: 'center', name: 'Center' },
+        { id: 'right', name: 'Right' },
+    ]
+
+    const ButtonGroup = ({ items, current, onSelect }) => (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: '10px' }}>
+            {items.map(item => (
+                <button key={item.id} onClick={() => onSelect(item.id)} style={{
+                    background: 'var(--card-bg)',
+                    border: current === item.id ? '2px solid var(--accent-color)' : '2px solid transparent',
+                    borderRadius: '12px',
+                    padding: '15px 10px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                    color: 'var(--text-primary)',
+                    fontWeight: '600',
+                    fontSize: '14px'
+                }}>
+                    {item.name}
+                </button>
+            ))}
+        </div>
+    )
+
     return (
         <div className="settings-view"
             onTouchStart={handleTouchStart}
@@ -40,7 +77,8 @@ export default function SettingsView({ onBack, currentTheme, onSetTheme }) {
                 backgroundColor: 'var(--bg-app)',
                 color: 'var(--text-primary)',
                 display: 'flex', flexDirection: 'column',
-                padding: '20px', paddingTop: '60px', boxSizing: 'border-box'
+                padding: '20px', paddingTop: '60px', boxSizing: 'border-box',
+                overflowY: 'auto'
             }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px' }}>
                 <button onClick={onBack} style={{
@@ -49,9 +87,9 @@ export default function SettingsView({ onBack, currentTheme, onSetTheme }) {
                 <div style={{ fontSize: '24px', fontWeight: 'bold' }}>Settings</div>
             </div>
 
+            {/* THEME SECTION */}
             <div style={{ marginBottom: '30px' }}>
                 <div style={{ fontSize: '14px', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '15px' }}>Appearance</div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     {themes.map(t => (
                         <button key={t.id} onClick={() => onSetTheme(t.id)} style={{
@@ -74,10 +112,25 @@ export default function SettingsView({ onBack, currentTheme, onSetTheme }) {
                 </div>
             </div>
 
+            {/* ERGONOMICS SECTION */}
+            <div style={{ marginBottom: '30px' }}>
+                <div style={{ fontSize: '14px', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '15px' }}>Ergonomics</div>
+
+                <div style={{ marginBottom: '20px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-primary)' }}>Wheel Size</div>
+                    <ButtonGroup items={layouts} current={currentLayout} onSelect={onSetLayout} />
+                </div>
+
+                <div>
+                    <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-primary)' }}>Handedness</div>
+                    <ButtonGroup items={hands} current={currentHand} onSelect={onSetHand} />
+                </div>
+            </div>
+
             <div style={{ flex: 1 }}></div>
 
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px', paddingBottom: '20px' }}>
-                Money App v1.44 Swipe Back <br />
+                Money App v1.50 Ergo <br />
                 Project Antigravity
             </div>
         </div>

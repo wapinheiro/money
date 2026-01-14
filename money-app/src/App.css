@@ -133,7 +133,8 @@ body {
   flex: 0 0 auto;
   width: 100%;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+  /* FIXED: Was flex-end */
   padding-bottom: 20px;
   padding-top: 20px;
   /* Reduced air gap */
@@ -170,6 +171,11 @@ body {
   border: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
   animation: fadeIn 0.3s ease-out;
+
+  /* DYNAMIC SCALING FOR ERGONOMICS */
+  transform: scale(var(--summary-scale, 1));
+  transform-origin: top center;
+  transition: transform 0.3s ease;
 }
 
 .summary-amount {

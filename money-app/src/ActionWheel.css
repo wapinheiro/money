@@ -3,8 +3,13 @@
     right: auto;
     bottom: auto;
 
-    width: 320px;
-    height: 320px;
+    /* DYNAMIC SIZING */
+    width: var(--wheel-size, 320px);
+    height: var(--wheel-size, 320px);
+
+    /* DYNAMIC OFFSET (Handedness) */
+    transform: translateX(var(--wheel-x-offset, 0px));
+    transition: width 0.3s, height 0.3s, transform 0.3s;
 
     /* THE TUCK: Removed. Flush alignment. */
     margin-right: 0;
@@ -84,7 +89,10 @@
     position: absolute;
     top: 0;
     left: 50%;
-    height: 160px;
+
+    /* HALF OF WHEEL SIZE */
+    height: calc(var(--wheel-size, 320px) / 2);
+
     /* Radius */
     transform-origin: bottom center;
 
@@ -150,8 +158,10 @@
     left: 50%;
     transform: translate(-50%, -50%);
 
-    width: 150px;
-    height: 150px;
+    /* ~47% of wheel size */
+    width: calc(var(--wheel-size, 320px) * 0.47);
+    height: calc(var(--wheel-size, 320px) * 0.47);
+
     border-radius: 50%;
     background: var(--accent-color, #4CAF50);
     border: 5px solid #1a1a1a;
@@ -162,6 +172,7 @@
     cursor: pointer;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     margin: 0;
+    transition: width 0.3s, height 0.3s;
 }
 
 .center-btn:active {
@@ -170,8 +181,9 @@
 
 /* --- CONTEXT MODE (3 Items) --- */
 .context-wedge {
-    width: 260px;
-    margin-left: -130px;
+    width: calc(var(--wheel-size, 320px) * 0.81);
+    /* Scaled from 260/320 */
+    margin-left: calc(var(--wheel-size, 320px) * -0.405);
 }
 
 .context-wedge .wedge-shape {

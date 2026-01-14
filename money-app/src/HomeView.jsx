@@ -190,7 +190,9 @@ export default function HomeView({ onOpenCapture, onOpenSettings }) {
 
             {/* FLOATING ACTION BUTTON (Center Bottom) */}
             <div style={{
-                position: 'absolute', bottom: '225px', left: '50%', transform: 'translateX(-50%)',
+                position: 'absolute', bottom: '225px', left: '50%',
+                transform: 'translateX(calc(-50% + var(--wheel-x-offset, 0px)))',
+                transition: 'transform 0.3s',
                 zIndex: 10
             }}>
                 <button onClick={onOpenCapture} style={{
