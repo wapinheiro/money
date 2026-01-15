@@ -375,7 +375,7 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                     position: 'absolute', top: '10px', right: '20px', // Moved to Right
                     color: 'var(--text-secondary)', fontSize: '10px',
                     zIndex: 20, pointerEvents: 'none', opacity: 0.5
-                }}>v1.77 Style Match</div>
+                }}>v1.80 Bars</div>
 
                 {mode === 'numpad' && (
                     <div className="readout" style={{ color: 'var(--accent-color)', fontWeight: 'normal' }}>

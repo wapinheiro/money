@@ -3,17 +3,20 @@ import { seedDatabase } from './db'
 import './App.css'
 
 // Views
+// Views
 import HomeView from './HomeView'
 import SettingsView from './SettingsView'
 import CaptureView from './CaptureView'
+import MenuView from './MenuView'
+import ManageView from './ManageView'
 
 function App() {
   const [view, setView] = useState('home') // 'home' | 'capture' | 'settings'
-  const [theme, setTheme] = useState('midnight')
+  const [theme, setTheme] = useState('daylight')
 
   // ERGONOMICS STATE
-  const [layout, setLayout] = useState('standard') // 'standard' | 'thumb' | 'visual'
-  const [hand, setHand] = useState('center') // 'center' | 'right' | 'left'
+  const [layout, setLayout] = useState('visual') // 'standard' | 'thumb' | 'visual'
+  const [hand, setHand] = useState('right') // 'center' | 'right' | 'left'
   const [ergoAutoSwitch, setErgoAutoSwitch] = useState(true) // Auto-switch to TH (Keypad) for Review (Default: TRUE)
   const [defaultInput, setDefaultInput] = useState('wheel') // 'wheel' | 'keypad'
   const [homeGrouping, setHomeGrouping] = useState('category') // 'category' | 'account'
@@ -62,7 +65,7 @@ function App() {
       {view === 'home' && (
         <HomeView
           onOpenCapture={() => setView('capture')}
-          onOpenSettings={() => setView('settings')}
+          onOpenSettings={() => setView('menu')}
           grouping={homeGrouping}
         />
       )}
@@ -81,7 +84,21 @@ function App() {
           onSetDefaultInput={setDefaultInput}
           homeGrouping={homeGrouping}
           onSetHomeGrouping={setHomeGrouping}
+          onBack={() => setView('menu')} // Back goes to Menu now
+        />
+      )}
+
+      {view === 'menu' && (
+        <MenuView
+          onSelect={(id) => setView(id)}
           onBack={() => setView('home')}
+        />
+      )}
+
+      {view.startsWith('manage_') && (
+        <ManageView
+          type={view.replace('manage_', '')}
+          onBack={() => setView('menu')}
         />
       )}
 

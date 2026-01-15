@@ -11,6 +11,10 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
     const [expandedCat, setExpandedCat] = useState(null)
     const [latestCatName, setLatestCatName] = useState(null)
 
+    // Local Totals
+    const [totalSpend, setTotalSpend] = useState(0)
+    const [totalIncome, setTotalIncome] = useState(5420.00) // Mock/Calculated Income
+
     // Sync if Default changes
     useEffect(() => {
         setActiveTab(grouping)
@@ -24,12 +28,21 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
     const fetchAndGroup = async () => {
         const txs = await db.transactions.toArray()
 
+        // Calculate Totals
+        const spend = txs.reduce((sum, tx) => sum + tx.amount, 0)
+        setTotalSpend(spend)
+        setBudgetLeft(totalIncome - spend) // Recalculate Safe-to-Spend
+
         // Fetch Metadata based on Active Tab
         let metadata = []
         if (activeTab === 'category') metadata = await db.categories.toArray()
         else if (activeTab === 'account') metadata = await db.accounts.toArray()
 
-        if (txs.length === 0) return
+        if (txs.length === 0) {
+            setGroupedData([])
+            setTotalSpend(0) // Reset
+            return
+        }
 
         // 1. Find Global Latest (for dot)
         txs.sort((a, b) => b.date - a.date)
@@ -42,7 +55,6 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
             const key = activeTab === 'category' ? tx.category : tx.account
 
             if (!groups[key]) {
-                // Find meta
                 const meta = metadata.find(m => m.name === key) || { icon: '📦', color: '#666' }
                 groups[key] = {
                     name: key,
@@ -87,8 +99,8 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
                 <div style={{ fontWeight: 'bold', fontSize: '24px' }}>My Money</div>
                 <button onClick={onOpenSettings} style={{
                     background: 'transparent', border: 'none',
-                    fontSize: '24px', cursor: 'pointer'
-                }}>⚙️</button>
+                    fontSize: '28px', cursor: 'pointer' // Slightly larger
+                }}>☰</button>
             </div>
 
             {/* HERO: LEFT TO SPEND */}
@@ -102,12 +114,32 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
                 <div style={{ fontSize: '48px', fontWeight: '700', color: 'var(--text-primary)' }}>
                     ${budgetLeft.toFixed(2)}
                 </div>
-                <div style={{
-                    fontSize: '12px', color: 'var(--accent-color)',
-                    background: 'rgba(76, 175, 80, 0.1)',
-                    padding: '4px 10px', borderRadius: '10px', marginTop: '5px'
-                }}>
-                    On Track
+
+                {/* INCOME / SPEND BARS */}
+                <div style={{ width: '80%', marginTop: '20px' }}>
+                    {/* INCOME BAR */}
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <div style={{ flex: 1, height: '6px', background: 'rgba(76, 175, 80, 0.2)', borderRadius: '3px', position: 'relative' }}>
+                            <div style={{ width: '100%', height: '100%', background: '#4CAF50', borderRadius: '3px' }}></div>
+                        </div>
+                        <div style={{ marginLeft: '10px', fontSize: '12px', fontWeight: 'bold', color: '#4CAF50', minWidth: '80px', textAlign: 'right' }}>
+                            Inc ${totalIncome.toFixed(0)}
+                        </div>
+                    </div>
+
+                    {/* SPEND BAR */}
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <div style={{ flex: 1, height: '6px', background: 'rgba(244, 67, 54, 0.1)', borderRadius: '3px', position: 'relative' }}>
+                            <div style={{
+                                width: `${Math.min((totalSpend / totalIncome) * 100, 100)}%`,
+                                height: '100%', background: '#F44336', borderRadius: '3px',
+                                transition: 'width 0.5s ease-out'
+                            }}></div>
+                        </div>
+                        <div style={{ marginLeft: '10px', fontSize: '12px', fontWeight: 'bold', color: '#F44336', minWidth: '80px', textAlign: 'right' }}>
+                            Spd ${totalSpend.toFixed(0)}
+                        </div>
+                    </div>
                 </div>
             </div>
 
