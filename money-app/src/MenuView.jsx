@@ -23,6 +23,16 @@ export default function MenuView({ onSelect, onBack }) {
                 <div style={{ fontSize: '32px', fontWeight: 'bold' }}>Menu</div>
             </div>
 
+            <button onClick={() => onSelect('planning')} style={{
+                background: 'var(--accent-color)', border: 'none', borderRadius: '20px',
+                padding: '20px', display: 'flex', alignItems: 'center',
+                fontSize: '20px', fontWeight: 'bold', color: 'white',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.3)', cursor: 'pointer',
+                marginBottom: '30px'
+            }}>
+                <span style={{ fontSize: '24px', marginRight: '20px' }}>📈</span> Planning & Budget
+            </button>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '15px' }}>
                 {menuItems.map(item => (
                     <button key={item.id} onClick={() => onSelect(item.id)} style={{

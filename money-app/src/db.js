@@ -34,6 +34,17 @@ db.version(4).stores({
     tags: '++id, name, type, startDate, endDate, color' // New Store
 });
 
+// Version 5: Budget and Bills
+db.version(5).stores({
+    transactions: '++id, date, merchant, category, account, type, tags', // tags index
+    merchants: '++id, name, icon, color',
+    categories: '++id, name, icon, color',
+    accounts: '++id, name, icon, color',
+    tags: '++id, name, type, startDate, endDate, color', // Time-based tags
+    bills: '++id, name, amount, dueDate, recurrence, status, categoryId', // New
+    budgets: '++id, name, type, scopeId, limit, period, startDate, endDate' // New
+});
+
 // Seed Function (Idempotent Upsert)
 export async function seedDatabase() {
 

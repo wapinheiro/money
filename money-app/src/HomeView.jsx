@@ -125,20 +125,19 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
         }}>
             {/* HEADER */}
             <div style={{
-                padding: '20px',
-                paddingTop: '60px', /* Safe Area */
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                position: 'relative'
+                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                marginBottom: '10px' // reduced for tighter layout
             }}>
-                <div style={{
-                    position: 'absolute', top: '40px', left: '20px',
-                    fontSize: '10px', color: 'var(--text-secondary)', opacity: 0.5
-                }}>v1.99c Home Tags</div>
-                <div style={{ fontWeight: 'bold', fontSize: '24px' }}>My Money</div>
-                <button onClick={onOpenSettings} style={{
-                    background: 'transparent', border: 'none',
-                    fontSize: '28px', cursor: 'pointer' // Slightly larger
-                }}>☰</button>
+                <div>
+                    <div style={{ fontSize: '10px', color: '#888', marginBottom: '-2px' }}>v1.99f Home Tags</div>
+                    <div style={{ fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>My Money</div>
+                </div>
+                <button
+                    onClick={onOpenSettings}
+                    style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', padding: '0' }}
+                >
+                    ☰
+                </button>
             </div>
 
             {/* HERO: LEFT TO SPEND */}

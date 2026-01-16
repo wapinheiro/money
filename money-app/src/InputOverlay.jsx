@@ -1,26 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react'
 
-export default function InputOverlay({ title, placeholder, initialValue = '', onSave, onCancel, showTagOptions = false, initialTagData = {} }) {
+export default function InputOverlay({
+    title, placeholder, initialValue = '',
+    onSave, onCancel,
+    showTagOptions = false, initialTagData,
+    showBillOptions = false, initialBillData
+}) {
     const [value, setValue] = useState(initialValue)
 
     // Tag Specific State
-    const [isTemp, setIsTemp] = useState(initialTagData.type === 'temporary' || false)
-    const [startDate, setStartDate] = useState(initialTagData.startDate || new Date().toISOString().split('T')[0])
-    const [endDate, setEndDate] = useState(initialTagData.endDate || '')
+    const [isTemp, setIsTemp] = useState(initialTagData?.type === 'temporary' || false)
+    const [startDate, setStartDate] = useState(initialTagData?.startDate || new Date().toISOString().split('T')[0])
+    const [endDate, setEndDate] = useState(initialTagData?.endDate || '')
+
+    // Bill Specific State
+    const [billAmount, setBillAmount] = useState(initialBillData?.amount || '')
+    const [billDay, setBillDay] = useState(initialBillData?.recurrenceDay || 1) // Day 1-31
 
     const inputRef = useRef(null)
 
     useEffect(() => {
         setValue(initialValue)
-        if (initialTagData.type) setIsTemp(initialTagData.type === 'temporary')
-        if (initialTagData.startDate) setStartDate(initialTagData.startDate)
-        if (initialTagData.endDate) setEndDate(initialTagData.endDate)
+        if (initialTagData?.type) setIsTemp(initialTagData.type === 'temporary')
+        if (initialTagData?.startDate) setStartDate(initialTagData.startDate)
+        if (initialTagData?.endDate) setEndDate(initialTagData.endDate)
+
+        if (initialBillData?.amount) setBillAmount(initialBillData.amount)
+        if (initialBillData?.dueDate) setBillDate(initialBillData.dueDate)
 
         // Auto-focus with slight delay for animation
         setTimeout(() => {
             if (inputRef.current) inputRef.current.focus()
         }, 100)
-    }, [initialValue, initialTagData])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialValue]) // Only reset if initialValue changes (primitive). Ignore stable object changes to avoid loops.
 
     const handleSubmit = () => {
         if (!value.trim()) return
@@ -31,6 +44,33 @@ export default function InputOverlay({ title, placeholder, initialValue = '', on
                 type: isTemp ? 'temporary' : 'permanent',
                 startDate: isTemp ? startDate : null,
                 endDate: isTemp ? endDate : null
+            })
+        } else if (showBillOptions) {
+            // Calculate next due date based on Day of Month
+            const today = new Date()
+            const currentYear = today.getFullYear()
+            const currentMonth = today.getMonth() // 0-11
+            const currentDay = today.getDate()
+
+            let nextDue
+            // If the bill day is in the future this month, set it for this month
+            if (billDay >= currentDay) {
+                nextDue = new Date(currentYear, currentMonth, billDay)
+            } else {
+                // Otherwise set it for next month
+                nextDue = new Date(currentYear, currentMonth + 1, billDay)
+            }
+
+            // ISO String YYYY-MM-DD
+            const dueDateString = nextDue.toISOString().split('T')[0]
+
+            onSave({
+                name: value,
+                amount: parseFloat(billAmount || '0'),
+                recurrenceDay: parseInt(billDay),
+                dueDate: dueDateString,
+                recurrence: 'monthly',
+                status: 'unpaid'
             })
         } else {
             onSave(value)
@@ -109,6 +149,48 @@ export default function InputOverlay({ title, placeholder, initialValue = '', on
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {showBillOptions && (
+                    <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(128,128,128,0.05)', borderRadius: '12px' }}>
+                        <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '5px' }}>Amount Due</label>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '15px' }}>
+                            <span style={{ fontSize: '20px', marginRight: '10px', color: '#888' }}>$</span>
+                            <input
+                                type="number"
+                                value={billAmount}
+                                onChange={e => setBillAmount(e.target.value)}
+                                placeholder="0.00"
+                                style={{
+                                    flex: 1, padding: '10px', borderRadius: '8px',
+                                    border: '1px solid rgba(128,128,128,0.3)',
+                                    background: 'var(--bg-app)', color: 'var(--text-primary)',
+                                    fontSize: '18px'
+                                }}
+                            />
+                        </div>
+
+                        <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '5px' }}>Day of Month Due</label>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span style={{ fontSize: '16px', marginRight: '10px', color: '#888' }}>Every Month on the:</span>
+                            <select
+                                value={billDay}
+                                onChange={e => setBillDay(parseInt(e.target.value))}
+                                style={{
+                                    padding: '10px', borderRadius: '8px',
+                                    border: '1px solid rgba(128,128,128,0.3)',
+                                    background: 'var(--bg-app)', color: 'var(--text-primary)',
+                                    fontSize: '16px', flex: 1
+                                }}
+                            >
+                                {[...Array(31).keys()].map(i => (
+                                    <option key={i + 1} value={i + 1}>{i + 1}{
+                                        (i + 1) === 1 ? 'st' : (i + 1) === 2 ? 'nd' : (i + 1) === 3 ? 'rd' : 'th'
+                                    }</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                 )}
 

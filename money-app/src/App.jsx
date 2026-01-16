@@ -9,6 +9,7 @@ import SettingsView from './SettingsView'
 import CaptureView from './CaptureView'
 import MenuView from './MenuView'
 import ManageView from './ManageView'
+import BudgetView from './BudgetView'
 
 function App() {
   const [view, setView] = useState('home') // 'home' | 'capture' | 'settings'
@@ -107,6 +108,12 @@ function App() {
           onClose={() => setView('home')} // Returns to home after save/cancel
           ergoAutoSwitch={ergoAutoSwitch}
           defaultInput={defaultInput}
+        />
+      )}
+
+      {view === 'planning' && (
+        <BudgetView
+          onBack={() => setView('menu')}
         />
       )}
     </div>
