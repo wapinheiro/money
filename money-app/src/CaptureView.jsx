@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { db } from './db'
 import ActionWheel from './ActionWheel'
 import Keypad from './Keypad' // NEW
+import InputOverlay from './InputOverlay'
 import './ActionWheel.css'
 import './App.css'
 
@@ -36,7 +37,7 @@ function getContrastYIQ(hexcolor) {
 
 export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultInput = 'wheel' }) {
     const [amount, setAmount] = useState('0.00')
-    const [mode, setMode] = useState('numpad') // 'numpad' | 'context' | 'edit' | 'review_nav'
+    const [mode, setMode] = useState('numpad') // 'numpad' | 'context' | 'edit' | 'review_nav' | 'creation'
     // INPUT METHOD: 'wheel' | 'keypad'
     const [inputMethod, setInputMethod] = useState(defaultInput)
 
@@ -65,12 +66,17 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
             // Load Options based on type
             async function loadOptions() {
                 let options = []
+                const createOption = { id: 'NEW', name: '+ Create New', icon: '➕', color: '#888' }
+
                 if (targetType === 'merchant') options = await db.merchants.toArray()
                 else if (targetType === 'category') options = await db.categories.toArray()
                 else if (targetType === 'account') options = await db.accounts.toArray()
 
+                // Prepend Create New
+                options = [createOption, ...options]
+
                 setEditOptions(options)
-                setEditIndex(0) // Reset index or find current val
+                setEditIndex(0) // Reset index
             }
             loadOptions()
             return
@@ -215,9 +221,16 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
             setStatusMsg(`Select ${focusedField}`)
 
             let options = []
+
             if (focusedField === 'merchant') options = await db.merchants.toArray()
             else if (focusedField === 'category') options = await db.categories.toArray()
             else if (focusedField === 'account') options = await db.accounts.toArray()
+
+            // Prepend Create New (ONLY IN KEYPAD MODE)
+            if (inputMethod === 'keypad') {
+                const createOption = { id: 'NEW', name: '+ Create New', icon: '➕', color: '#888' }
+                options = [createOption, ...options]
+            }
 
             setEditOptions(options)
             setEditIndex(0)
@@ -245,10 +258,44 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
             setStatusMsg('Updated')
             return
         }
+    } // END handleCenterClick
+
+    // ACTIONS
+    const handleCreateNew = async (name) => {
+        const table = editTarget === 'merchant' ? db.merchants :
+            editTarget === 'category' ? db.categories : db.accounts
+
+        // Basic Defaults
+        const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C', '#FF00CC', '#00FFCC']
+        const randomColor = colors[Math.floor(Math.random() * colors.length)]
+        const defaultIcon = editTarget === 'merchant' ? '🏪' : editTarget === 'category' ? '🏷️' : '🏦'
+
+        const newItem = {
+            name: name,
+            icon: defaultIcon,
+            color: randomColor
+        }
+
+        try {
+            const id = await table.add(newItem)
+            // Auto Select logic
+            // Reuse handleOptionClick but we need to ensure it processes the object correctly
+            // handleOptionClick expects: { name, icon/logo, color }
+            handleOptionClick({ ...newItem, id })
+        } catch (e) {
+            console.error("Creation failed", e)
+            setStatusMsg('Error creating item')
+        }
     }
 
     // HELPER: Confirm Selection (Direct Click)
     const handleOptionClick = (option) => {
+        // Handle Create New
+        if (option.id === 'NEW') {
+            setMode('creation') // Switch to Creation Mode
+            return
+        }
+
         const newContext = contextItems.map(item => {
             if (item.value === editTarget) {
                 return { ...item, label: option.name, logo: option.logo || option.icon, color: option.color, meta: option }
@@ -259,15 +306,9 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
         setMode('review_nav')
         setEditTarget(null)
         setStatusMsg('Updated')
-    }
+    } // End handleOptionClick
 
     const currentItems = mode === 'numpad' ? NUMPAD_ITEMS : contextItems
-
-    // Determine current theme for contrast checks?
-    // We can read data-theme from document if needed, but for now we rely on CSS vars mostly.
-    // The Carousel needs JS logic for contrast.
-    // We can grab it from document.documentElement.getAttribute('data-theme') inside the render if needed,
-    // but let's assume 'midnight' contrast logic for 'edit' mode Carousels is robust enough or re-check.
 
     // --- GESTURE HANDLER (Swipe to Close on Center Button) ---
     const [touchStart, setTouchStart] = useState(null)
@@ -372,10 +413,10 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
 
                 {/* VERSION LABEL */}
                 <div style={{
-                    position: 'absolute', top: '10px', right: '20px', // Moved to Right
+                    position: 'absolute', top: '15px', right: 'unset', left: '80px', // Moved next to Back Button
                     color: 'var(--text-secondary)', fontSize: '10px',
                     zIndex: 20, pointerEvents: 'none', opacity: 0.5
-                }}>v1.80 Bars</div>
+                }}>v1.98 Top Toggle</div>
 
                 {mode === 'numpad' && (
                     <div className="readout" style={{ color: 'var(--accent-color)', fontWeight: 'normal' }}>
@@ -431,6 +472,8 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
 
                                     // Load Options & Deduplicate
                                     let options = []
+                                    const createOption = { id: 'NEW', name: '+ Create New', icon: '➕', color: '#888' }
+
                                     if (item.value === 'merchant') options = await db.merchants.toArray()
                                     else if (item.value === 'category') options = await db.categories.toArray()
                                     else if (item.value === 'account') options = await db.accounts.toArray()
@@ -442,6 +485,12 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                                         seen.add(o.name)
                                         return true
                                     })
+
+                                    // Prepend Create New (ONLY IN KEYPAD MODE)
+                                    const shouldUseKeypad = inputMethod === 'keypad' || ergoAutoSwitch
+                                    if (shouldUseKeypad) {
+                                        options = [createOption, ...options]
+                                    }
 
                                     setEditOptions(options)
                                     setEditIndex(0)
@@ -533,7 +582,7 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                         onClick={() => setInputMethod(prev => prev === 'wheel' ? 'keypad' : 'wheel')}
                         style={{
                             position: 'absolute',
-                            bottom: '20px',
+                            top: '20px', // Moved to TOP
                             right: '25px',
                             width: '50px',
                             height: '50px',
@@ -543,7 +592,7 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                             color: 'white',
                             fontSize: '24px',
                             cursor: 'pointer',
-                            zIndex: 20
+                            zIndex: 100 // High Z-Index
                         }}
                     >
                         {inputMethod === 'wheel' ? '⌨️' : '🎡'}
@@ -652,6 +701,16 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                                 </div>
                             )}
             </div>
+
+            {/* CREATION OVERLAY (Moved to Root) */}
+            {mode === 'creation' && (
+                <InputOverlay
+                    title={`New ${editTarget}`}
+                    placeholder={`Name for new ${editTarget}...`}
+                    onSave={handleCreateNew}
+                    onCancel={() => setMode('edit')}
+                />
+            )}
         </div>
     )
 }
