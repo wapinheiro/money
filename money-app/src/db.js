@@ -25,6 +25,15 @@ db.version(3).stores({
     accounts: '++id, name, type, institution' // Added type/institution
 });
 
+// Version 4 (Tags Support)
+db.version(4).stores({
+    transactions: '++id, date, amount, currency, merchantId, categoryId, accountId, status, *tags', // Added tags index
+    merchants: '++id, name, defaultCategoryId, mcc',
+    categories: '++id, name, icon, type, parentId',
+    accounts: '++id, name, type, institution',
+    tags: '++id, name, type, startDate, endDate, color' // New Store
+});
+
 // Seed Function (Idempotent Upsert)
 export async function seedDatabase() {
 
@@ -138,5 +147,25 @@ export async function seedDatabase() {
         }
     }
 
-    console.log("Database Schema v3 Seeded! 🌈");
+
+
+    // 4. Tags (New in v4)
+    const tags = [
+        { name: 'Lunch', type: 'permanent', color: '#FF9F1C' },
+        { name: 'Dinner', type: 'permanent', color: '#FF6B6B' },
+        { name: 'Coffee', type: 'permanent', color: '#C49F4B' },
+        { name: 'Trip: Jan 2026', type: 'temporary', startDate: '2026-01-01', endDate: '2026-01-31', color: '#4ECDC4' },
+        { name: 'Work Exp', type: 'permanent', color: '#999' }
+    ];
+
+    for (const t of tags) {
+        const existing = await db.tags.where('name').equals(t.name).first();
+        if (existing) {
+            await db.tags.update(existing.id, t);
+        } else {
+            await db.tags.add(t);
+        }
+    }
+
+    console.log("Database Schema v4 (Tags) Seeded! 🏷️");
 }

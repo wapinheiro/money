@@ -1,16 +1,44 @@
-# React + Vite
+# My Money 💰
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A hyper-fast, local-first Personal Finance PWA designed for mobile capture and "Safe-to-Spend" budgeting.
 
-Currently, two official plugins are available:
+## 🚀 Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+*   **Lightning Capture**: optimized flow to enter transactions in seconds.
+*   **Safe-to-Spend**: Real-time calculation of remaining budget based on Income - Spend.
+*   **Context Aware**: Auto-remembers Merchant details (Category, Account).
+*   **Flexible Tagging**:
+    *   **Standard Tags**: `#Coffee`, `#Work`
+    *   **Time-Based Events**: `#Trip-Hawaii` (Active only during the trip dates).
+    *   **Seasonal Tasks**: `#Taxes2025` (Active during tax season for easy filing).
+*   **Local First**: All data stored in your browser (IndexedDB). No servers, no tracking.
 
-## React Compiler
+## 🛠️ Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+*   **Frontend**: React (Vite)
+*   **Database**: Dexie.js (IndexedDB wrapper)
+*   **Styling**: Pure CSS (Variables, Dark/Light modes supported)
+*   **Deployment**: Static Web App (Vercel/Netlify compatible)
 
-## Expanding the ESLint configuration
+## 📂 Project Structure
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+*   `src/HomeView.jsx` - Dashboard & Reporting
+*   `src/CaptureView.jsx` - Transaction Entry & Tagging
+*   `src/ManageView.jsx` - Entity Management (CRUD)
+*   `src/db.js` - Database Schema & Seeding
+
+## 🏷️ Tagging System (v1.99+)
+
+The app features a robust dual-mode tagging system:
+1.  **Permanent Tags**: Always available in the list.
+2.  **Temporary Tags**: Defined by a Start/End date.
+    *   *Auto-Sort*: Automatically appear at the top of the list during their active window.
+    *   *Auto-Hide*: Disappear from the selection list when expired (but keep data).
+
+## 🏃‍♂️ Running Locally
+
+```bash
+npm install
+npm run dev
+```
+open `http://localhost:5173`

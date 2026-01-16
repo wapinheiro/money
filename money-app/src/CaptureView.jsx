@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { db } from './db'
 import ActionWheel from './ActionWheel'
 import Keypad from './Keypad' // NEW
@@ -22,7 +22,7 @@ const NUMPAD_ITEMS = [
 ]
 
 // REVIEW NAV INDICES
-const NAV_FIELDS = ['amount', 'merchant', 'category', 'account', 'save']
+const NAV_FIELDS = ['amount', 'merchant', 'category', 'account', 'tags', 'save']
 
 // UTILS
 function getContrastYIQ(hexcolor) {
@@ -43,12 +43,13 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
 
     const [statusMsg, setStatusMsg] = useState('Ready')
     const [contextItems, setContextItems] = useState([])
+    const [selectedTags, setSelectedTags] = useState([]) // New State for Tags
 
     /* State for Review Nav */
     const [reviewFocus, setReviewFocus] = useState(1) // Default start at 1 (Merchant)
 
     /* State for Edit Mode */
-    const [editTarget, setEditTarget] = useState(null) // 'merchant', 'category', 'account'
+    const [editTarget, setEditTarget] = useState(null) // 'merchant', 'category', 'account', 'tags'
     const [editOptions, setEditOptions] = useState([])
     const [editIndex, setEditIndex] = useState(0)
 
@@ -198,7 +199,8 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                         status: 'review',
                         merchant: contextItems[0].label,
                         category: contextItems[1].label,
-                        account: contextItems[2].label
+                        account: contextItems[2].label,
+                        tags: selectedTags.map(t => t.id) // Save Tag IDs
                     })
                     setStatusMsg(`Saved $${amount}!`)
                     setTimeout(() => { if (onClose) onClose() }, 1000)
@@ -221,14 +223,25 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
             setStatusMsg(`Select ${focusedField}`)
 
             let options = []
+            const createOption = { id: 'NEW', name: '+ Create New', icon: '➕', color: '#888' }
 
             if (focusedField === 'merchant') options = await db.merchants.toArray()
             else if (focusedField === 'category') options = await db.categories.toArray()
             else if (focusedField === 'account') options = await db.accounts.toArray()
+            else if (focusedField === 'tags') {
+                const allTags = await db.tags.toArray()
+                // Filter Active Tags
+                const now = new Date()
+                options = allTags.filter(t => {
+                    if (!t.endDate) return true; // Permanent
+                    const start = new Date(t.startDate)
+                    const end = new Date(t.endDate)
+                    return now >= start && now <= end;
+                })
+            }
 
             // Prepend Create New (ONLY IN KEYPAD MODE)
             if (inputMethod === 'keypad') {
-                const createOption = { id: 'NEW', name: '+ Create New', icon: '➕', color: '#888' }
                 options = [createOption, ...options]
             }
 
@@ -240,7 +253,40 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
         if (mode === 'edit') {
             if (!editOptions[editIndex]) return // Guard
 
-            // CONFIRM SELECTION
+            // SPECIAL CASE: TAGS (Multi-Select)
+            if (editTarget === 'tags') {
+                handleTagToggle(editOptions[editIndex])
+                return // Don't close edit mode automatically? Or do we? 
+                // For Keypad/Grid mode, maybe we stay open until they hit "OK".
+                // For Wheel mode, clicking center usually means "Select & Close".
+                // Let's assume for now clicking center on Wheel toggles it. 
+                // User must use "Back" or "Next" to exit? 
+                // Actually in 'edit' mode, Center click is "Save/Confirm". 
+                // If it's multi-select, Center click should probably just toggle.
+                // But how do they "Finish"?
+                // The "OK" button (which is the Center button styling) handles the `handleCenterClick`.
+                // So if we are here, they clicked the center button.
+                // Wait, `handleCenterClick` IS the center button.
+                // So if they are in 'edit' mode and click Center, it confirms selection.
+
+                // For Wheel: Center Click = Select the ITEM focused by the wheel. 
+                // So yes, toggle that item. 
+                // But then how to leave? 
+                // Maybe "OK" (Center Button) implies "I'm done with this screen".
+                // Ah, this logic at line 240 is confusing for Multi-Select. 
+                // Let's say Center Click selects the focused item. 
+                // If multiselect, we should toggle it and maybe show a toast "Tag Added".
+                // But then they are still in edit mode.
+                // We need a way to "Finish". 
+                // The Swipe down gesture `handleTouchEnd` handles "Back".
+
+                // Let's make Wheel Center Click = Toggle & Stay.
+                handleTagToggle(editOptions[editIndex])
+                setStatusMsg(selectedTags.some(t => t.id === editOptions[editIndex].id) ? 'Tag Removed' : 'Tag Added')
+                return
+            }
+
+            // CONFIRM SELECTION (Single Select Types)
             const selectedOption = editOptions[editIndex]
 
             // Update Context Items
@@ -263,29 +309,54 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
     // ACTIONS
     const handleCreateNew = async (name) => {
         const table = editTarget === 'merchant' ? db.merchants :
-            editTarget === 'category' ? db.categories : db.accounts
+            editTarget === 'category' ? db.categories :
+                editTarget === 'account' ? db.accounts : db.tags
 
         // Basic Defaults
         const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C', '#FF00CC', '#00FFCC']
         const randomColor = colors[Math.floor(Math.random() * colors.length)]
-        const defaultIcon = editTarget === 'merchant' ? '🏪' : editTarget === 'category' ? '🏷️' : '🏦'
+        const defaultIcon = editTarget === 'merchant' ? '🏪' : editTarget === 'category' ? '🏷️' : editTarget === 'account' ? '🏦' : '🔖'
 
         const newItem = {
             name: name,
-            icon: defaultIcon,
+            icon: defaultIcon, // Tags might not use icons, but schema supports it if we add it
+            type: 'permanent', // Default to permanent for quick create
             color: randomColor
         }
 
         try {
             const id = await table.add(newItem)
-            // Auto Select logic
-            // Reuse handleOptionClick but we need to ensure it processes the object correctly
-            // handleOptionClick expects: { name, icon/logo, color }
-            handleOptionClick({ ...newItem, id })
+            if (editTarget === 'tags') {
+                // For Tags, we toggle it ON
+                handleTagToggle({ ...newItem, id })
+                setMode('review_nav') // Return after creation
+            } else {
+                handleOptionClick({ ...newItem, id })
+            }
         } catch (e) {
             console.error("Creation failed", e)
             setStatusMsg('Error creating item')
         }
+    }
+
+    // HELPER: Tag Toggle (Multi-Select)
+    const handleTagToggle = (tag) => {
+        if (tag.id === 'NEW') {
+            setMode('creation')
+            return
+        }
+
+        const alreadySelected = selectedTags.some(t => t.id === tag.id)
+        let newTags
+        if (alreadySelected) {
+            newTags = selectedTags.filter(t => t.id !== tag.id)
+        } else {
+            newTags = [...selectedTags, tag]
+        }
+        setSelectedTags(newTags)
+        // Stay in Edit Mode to allow multiple selections? 
+        // Or user clicks "OK" to finish.
+        // Let's rely on the "OK" button in the grid/wheel interface to exit.
     }
 
     // HELPER: Confirm Selection (Direct Click)
@@ -411,12 +482,7 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                     </button>
                 )}
 
-                {/* VERSION LABEL */}
-                <div style={{
-                    position: 'absolute', top: '15px', right: 'unset', left: '80px', // Moved next to Back Button
-                    color: 'var(--text-secondary)', fontSize: '10px',
-                    zIndex: 20, pointerEvents: 'none', opacity: 0.5
-                }}>v1.98 Top Toggle</div>
+
 
                 {mode === 'numpad' && (
                     <div className="readout" style={{ color: 'var(--accent-color)', fontWeight: 'normal' }}>
@@ -521,6 +587,64 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                                 <span style={{ color: '#666' }}> › </span>
                             </div>
                         ))}
+
+
+                        {/* TAGS ROW */}
+                        <div className="summary-row"
+                            onClick={async () => {
+                                if (inputMethod !== 'keypad') return
+
+                                setEditTarget('tags')
+                                setMode('edit')
+                                setStatusMsg('Select Tags')
+
+                                const allTags = await db.tags.toArray()
+                                // Filter Active Tags
+                                const now = new Date()
+                                const activeTags = allTags.filter(t => {
+                                    if (!t.endDate) return true; // Permanent
+                                    const start = new Date(t.startDate)
+                                    const end = new Date(t.endDate)
+                                    return now >= start && now <= end;
+                                })
+
+                                // Helper: Sort Temporary First
+                                activeTags.sort((a, b) => {
+                                    const nameA = a.name || ''
+                                    const nameB = b.name || ''
+                                    if (a.type === b.type) return nameA.localeCompare(nameB)
+                                    return a.type === 'temporary' ? -1 : 1
+                                })
+
+                                const createOption = { id: 'NEW', name: '+ New', icon: '➕', color: '#888' }
+                                const options = [createOption, ...activeTags]
+                                setEditOptions(options)
+                            }}
+                            style={{
+                                ...getHighlightStyle('tags'),
+                                transition: 'all 0.2s', paddingLeft: '5px', paddingRight: '5px', borderRadius: '8px',
+                                cursor: inputMethod === 'keypad' ? 'pointer' : 'default',
+                                marginTop: '5px', borderTop: '1px solid rgba(255,255,255,0.1)'
+                            }}
+                        >
+                            <span className="summary-label">Tags</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1 }}>
+                                {selectedTags.length === 0 ? (
+                                    <span style={{ color: '#666', fontSize: '12px' }}>+ Add Tags</span>
+                                ) : (
+                                    selectedTags.map(tag => (
+                                        <span key={tag.id} style={{
+                                            background: tag.color || '#666',
+                                            color: getContrastYIQ(tag.color || '#666'),
+                                            fontSize: '10px', padding: '2px 6px', borderRadius: '4px'
+                                        }}>
+                                            #{tag.name}
+                                        </span>
+                                    ))
+                                )}
+                            </div>
+                            <span style={{ color: '#666', marginLeft: '10px' }}> › </span>
+                        </div>
                     </div>
                 )}
 
@@ -653,24 +777,62 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                                 display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px',
                                 overflowY: 'auto', alignContent: 'start'
                             }}>
-                                {editOptions.map((opt, i) => (
-                                    <button key={i} onClick={() => handleOptionClick(opt)} style={{
-                                        background: opt.color ? `${opt.color}33` : '#333', // Low opacity background
-                                        border: `2px solid ${opt.color || '#555'}`,
-                                        color: 'var(--text-primary)',
-                                        borderRadius: '12px', fontSize: '16px', fontWeight: 'bold',
-                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                        padding: '15px', minHeight: '80px'
-                                    }}>
-                                        <div style={{ fontSize: '28px', marginBottom: '5px' }}>{opt.logo || opt.icon}</div>
-                                        {opt.name}
-                                    </button>
-                                ))}
-                                <button onClick={() => setMode('review_nav')} style={{
+                                {Array.isArray(editOptions) && editOptions.map((opt, i) => {
+                                    const prev = editOptions[i - 1]
+                                    let showHeader = false
+                                    let headerTitle = ''
+
+                                    // Header Logic
+                                    // Header Logic
+                                    if (editTarget === 'tags' && opt) {
+                                        // Case 1: First item is Temporary -> "Temporary Tags"
+                                        if (i === 1 && opt.type === 'temporary') {
+                                            showHeader = true; headerTitle = 'Temporary Tags'
+                                        }
+                                        // Case 2: Item is Permanent, and Previous was either "New" or "Temporary" -> "Permanent Tags"
+                                        else if (opt.type === 'permanent' && (!prev || prev.id === 'NEW' || prev.type === 'temporary')) {
+                                            showHeader = true; headerTitle = 'Permanent Tags'
+                                        }
+                                    }
+
+                                    return (
+                                        <React.Fragment key={i}>
+                                            {showHeader && (
+                                                <div style={{
+                                                    gridColumn: '1 / -1',
+                                                    color: 'var(--accent-color)', // Changed to Accent for better visibility
+                                                    fontSize: '12px', fontWeight: 'bold',
+                                                    marginTop: '15px', marginBottom: '5px',
+                                                    textTransform: 'uppercase', letterSpacing: '1px',
+                                                    paddingLeft: '5px'
+                                                }}>
+                                                    {headerTitle}
+                                                </div>
+                                            )}
+                                            <button onClick={() => editTarget === 'tags' ? handleTagToggle(opt) : handleOptionClick(opt)} style={{
+                                                background: (editTarget === 'tags' && selectedTags.some(t => t.id === opt.id)) ? 'var(--accent-color)' : // Highlight Selected
+                                                    opt.color ? `${opt.color}33` : '#333',
+                                                border: (editTarget === 'tags' && selectedTags.some(t => t.id === opt.id)) ? '2px solid white' :
+                                                    `2px solid ${opt.color || '#555'}`,
+                                                color: (editTarget === 'tags' && selectedTags.some(t => t.id === opt.id)) ? 'white' : 'var(--text-primary)',
+                                                borderRadius: '12px', fontSize: '16px', fontWeight: 'bold',
+                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                padding: '15px', minHeight: '80px'
+                                            }}>
+                                                <div style={{ fontSize: '28px', marginBottom: '5px' }}>{opt.logo || opt.icon}</div>
+                                                {opt.name}
+                                            </button>
+                                        </React.Fragment>
+                                    )
+                                })}
+                                <button onClick={() => {
+                                    setMode('review_nav')
+                                    setReviewFocus(5) // Auto-advance to SAVE
+                                }} style={{
                                     gridColumn: 'span 2', background: '#333', color: 'white',
                                     border: '1px solid #555', borderRadius: '12px', padding: '15px'
                                 }}>
-                                    CANCEL
+                                    DONE
                                 </button>
                             </div>
                         )
@@ -709,6 +871,7 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                     placeholder={`Name for new ${editTarget}...`}
                     onSave={handleCreateNew}
                     onCancel={() => setMode('edit')}
+                    showTagOptions={editTarget === 'tags'}
                 />
             )}
         </div>

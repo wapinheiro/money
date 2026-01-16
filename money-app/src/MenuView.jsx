@@ -5,6 +5,7 @@ export default function MenuView({ onSelect, onBack }) {
         { id: 'manage_merchant', label: 'Merchants', icon: '🏪', color: '#FF9500' },
         { id: 'manage_category', label: 'Categories', icon: '📂', color: '#007AFF' },
         { id: 'manage_account', label: 'Accounts', icon: '💳', color: '#4CD964' },
+        { id: 'manage_tags', label: 'Tags', icon: '🔖', color: '#FF2D55' },
     ]
 
     return (

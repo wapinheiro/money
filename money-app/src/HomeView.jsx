@@ -37,6 +37,7 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
         let metadata = []
         if (activeTab === 'category') metadata = await db.categories.toArray()
         else if (activeTab === 'account') metadata = await db.accounts.toArray()
+        else if (activeTab === 'tags') metadata = await db.tags.toArray()
 
         if (txs.length === 0) {
             setGroupedData([])
@@ -47,19 +48,33 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
         // 1. Find Global Latest (for dot)
         txs.sort((a, b) => b.date - a.date)
         const latestTx = txs[0]
-        setLatestCatName(activeTab === 'category' ? latestTx.category : latestTx.account)
+
+        let latestKey = null
+        if (activeTab === 'category') latestKey = latestTx.category
+        else if (activeTab === 'account') latestKey = latestTx.account
+        else if (activeTab === 'tags' && latestTx.tags && latestTx.tags.length > 0) {
+            // For tags, just highlight the first tag of the latest tx? 
+            // Or maybe we don't do the dot for tags yet.
+            // Let's try to match the first tag ID to a name
+            const tagId = latestTx.tags[0]
+            const tagObj = metadata.find(m => m.id === tagId)
+            if (tagObj) latestKey = tagObj.name
+        }
+        setLatestCatName(latestKey)
 
         // 2. Group By Field
         const groups = {}
-        txs.forEach(tx => {
-            const key = activeTab === 'category' ? tx.category : tx.account
 
+        // Helper to process group addition
+        const addToGroup = (key, tx, metaItem = null) => {
             if (!groups[key]) {
-                const meta = metadata.find(m => m.name === key) || { icon: '📦', color: '#666' }
+                const meta = metaItem || metadata.find(m => m.name === key) || { icon: '🏷️', color: '#666' }
                 groups[key] = {
                     name: key,
-                    icon: meta.icon || (activeTab === 'account' ? '💳' : '📂'),
+                    icon: meta.icon || (activeTab === 'account' ? '💳' : activeTab === 'category' ? '📂' : '🏷️'),
                     color: meta.color || '#666',
+                    type: meta.type || 'permanent',
+                    endDate: meta.endDate,
                     total: 0,
                     count: 0,
                     transactions: [],
@@ -71,6 +86,24 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
             g.count += 1
             g.transactions.push(tx)
             if (tx.date > g.latestDate) g.latestDate = tx.date
+        }
+
+        txs.forEach(tx => {
+            if (activeTab === 'tags') {
+                if (!tx.tags || tx.tags.length === 0) {
+                    addToGroup('Untagged', tx, { icon: '🚫', color: '#ccc' })
+                } else {
+                    tx.tags.forEach(tagId => {
+                        const tag = metadata.find(m => m.id === tagId)
+                        if (tag) {
+                            addToGroup(tag.name, tx, tag)
+                        }
+                    })
+                }
+            } else {
+                const key = activeTab === 'category' ? tx.category : tx.account
+                addToGroup(key, tx)
+            }
         })
 
         // 3. Convert to Array & Sort by Latest Activity
@@ -94,8 +127,13 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
             <div style={{
                 padding: '20px',
                 paddingTop: '60px', /* Safe Area */
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                position: 'relative'
             }}>
+                <div style={{
+                    position: 'absolute', top: '40px', left: '20px',
+                    fontSize: '10px', color: 'var(--text-secondary)', opacity: 0.5
+                }}>v1.99c Home Tags</div>
                 <div style={{ fontWeight: 'bold', fontSize: '24px' }}>My Money</div>
                 <button onClick={onOpenSettings} style={{
                     background: 'transparent', border: 'none',
@@ -159,9 +197,9 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
                     borderRadius: '12px', padding: '4px', marginBottom: '20px'
                 }}>
                     {[
-                        // Dynamic Order: Default First
-                        grouping === 'category' ? { id: 'category', label: 'Category' } : { id: 'account', label: 'Account' },
-                        grouping === 'category' ? { id: 'account', label: 'Account' } : { id: 'category', label: 'Category' }
+                        { id: 'category', label: 'Category' },
+                        { id: 'account', label: 'Account' },
+                        { id: 'tags', label: 'Tags' }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -226,7 +264,14 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{group.name}</span>
-                                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{group.count} transactions</span>
+                                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                            {group.count} transactions
+                                            {group.type === 'temporary' && group.endDate && (
+                                                <span style={{ marginLeft: '5px', color: 'var(--accent-color)' }}>
+                                                    • Ends {new Date(group.endDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                </span>
+                                            )}
+                                        </span>
                                     </div>
                                 </div>
                                 <div style={{ fontWeight: '600', fontSize: '16px' }}>-${group.total.toFixed(2)}</div>

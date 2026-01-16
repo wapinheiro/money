@@ -11,7 +11,8 @@ export default function ManageView({ type, onBack }) {
     const titleMap = {
         'merchant': 'Merchants',
         'category': 'Categories',
-        'account': 'Accounts'
+        'account': 'Accounts',
+        'tags': 'Tags'
     }
 
     useEffect(() => {
@@ -23,24 +24,39 @@ export default function ManageView({ type, onBack }) {
         if (type === 'merchant') data = await db.merchants.toArray()
         if (type === 'category') data = await db.categories.toArray()
         if (type === 'account') data = await db.accounts.toArray()
+        if (type === 'tags') data = await db.tags.toArray()
+
         // Sort by name
         data.sort((a, b) => a.name.localeCompare(b.name))
         setItems(data)
     }
 
-    const handleSave = async () => {
+    const handleSave = async (payload) => {
+        // payload might be string or object
+        const inputValue = typeof payload === 'string' ? payload : payload.name
+        const tagData = typeof payload === 'object' ? payload : {}
+
         if (!inputValue.trim()) return
 
         const table = type === 'merchant' ? db.merchants :
-            type === 'category' ? db.categories : db.accounts
+            type === 'category' ? db.categories :
+                type === 'account' ? db.accounts : db.tags
+
+        const updateData = { name: inputValue }
+        // For Tags, include extra fields
+        if (type === 'tags') {
+            updateData.type = tagData.type || 'permanent'
+            updateData.startDate = tagData.startDate || null
+            updateData.endDate = tagData.endDate || null
+        }
 
         if (editId) {
-            await table.update(editId, { name: inputValue })
+            await table.update(editId, updateData)
         } else {
             // Create New
             const newObj = {
-                name: inputValue,
-                icon: type === 'account' ? '💳' : type === 'merchant' ? '🏪' : '📂',
+                ...updateData,
+                icon: type === 'account' ? '💳' : type === 'merchant' ? '🏪' : type === 'category' ? '📂' : '🔖',
                 color: '#' + Math.floor(Math.random() * 16777215).toString(16) // Random Color
             }
             await table.add(newObj)
@@ -55,7 +71,8 @@ export default function ManageView({ type, onBack }) {
     const handleDelete = async (id) => {
         if (!window.confirm("Delete this item?")) return
         const table = type === 'merchant' ? db.merchants :
-            type === 'category' ? db.categories : db.accounts
+            type === 'category' ? db.categories :
+                type === 'account' ? db.accounts : db.tags
         await table.delete(id)
         loadItems()
     }
@@ -63,12 +80,18 @@ export default function ManageView({ type, onBack }) {
     const startEdit = (item) => {
         setInputValue(item.name)
         setEditId(item.id)
+        // Store full item for tag editing
+        setEditItem(item)
         setIsEditing(true)
     }
+
+    // Add state for full item
+    const [editItem, setEditItem] = useState(null)
 
     const startAdd = () => {
         setInputValue('')
         setEditId(null)
+        setEditItem(null)
         setIsEditing(true)
     }
 
@@ -103,7 +126,14 @@ export default function ManageView({ type, onBack }) {
                             }}>
                                 {item.icon || '•'}
                             </div>
-                            <span style={{ fontSize: '16px', fontWeight: '500' }}>{item.name}</span>
+                            <div>
+                                <div style={{ fontSize: '16px', fontWeight: '500' }}>{item.name}</div>
+                                {type === 'tags' && item.type === 'temporary' && (
+                                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                        End: {item.endDate}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <button onClick={() => handleDelete(item.id)} style={{
                             background: 'none', border: 'none', fontSize: '18px',
@@ -129,17 +159,15 @@ export default function ManageView({ type, onBack }) {
                     title={editId ? 'Edit Item' : 'New Item'}
                     placeholder="Type a name..."
                     initialValue={inputValue}
+                    initialTagData={editItem || {}}
+                    showTagOptions={type === 'tags'}
                     onSave={(val) => {
-                        setInputValue(val)
-                        // Trigger save logic which uses `inputValue`, 
-                        // but `handleSave` uses state. We need to adapt it slightly 
-                        // or just update state and call handleSave.
-                        // Better to refactor handleSave to accept an arg.
                         handleSave(val)
                     }}
                     onCancel={() => {
                         setIsEditing(false)
                         setInputValue('')
+                        setEditId(null)
                     }}
                 />
             )}
