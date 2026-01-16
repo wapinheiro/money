@@ -9,6 +9,7 @@ export default function BudgetView({ onBack }) {
     // Toggles for UI keying
     const [viewMode, setViewMode] = useState('planning') // 'planning' | 'management'
     const [showAddBill, setShowAddBill] = useState(false)
+    const [editingBill, setEditingBill] = useState(null) // New State for Editing
 
     useEffect(() => {
         loadData()
@@ -23,15 +24,21 @@ export default function BudgetView({ onBack }) {
         setBudgets(allBudgets)
     }
 
-    const handleAddBill = async (billData) => {
+    const handleSaveBill = async (billData) => {
         try {
-            console.log("Adding Bill:", billData)
-            await db.bills.add(billData)
-            setShowAddBill(false)
+            if (editingBill) {
+                console.log("Updating Bill:", billData)
+                await db.bills.update(editingBill.id, billData)
+                setEditingBill(null)
+            } else {
+                console.log("Adding Bill:", billData)
+                await db.bills.add(billData)
+                setShowAddBill(false)
+            }
             loadData()
         } catch (error) {
-            console.error("Failed to add bill:", error)
-            alert("Error adding bill: " + error.message + "\n\nTry reloading the page if this persists.")
+            console.error("Failed to save bill:", error)
+            alert("Error saving bill: " + error.message)
         }
     }
 
@@ -96,27 +103,41 @@ export default function BudgetView({ onBack }) {
                                             border: `2px solid ${bill.status === 'paid' ? 'var(--accent-color)' : '#666'}`,
                                             background: bill.status === 'paid' ? 'var(--accent-color)' : 'transparent',
                                             display: 'flex', justifyContent: 'center', alignItems: 'center',
-                                            marginRight: '15px', cursor: 'pointer', color: 'white', fontSize: '14px'
+                                            marginRight: '15px', cursor: 'pointer', color: 'white', fontSize: '14px',
+                                            zIndex: 10 // Ensure click target is above row
                                         }}
                                     >
                                         {bill.status === 'paid' && '✓'}
                                     </div>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{
-                                            fontSize: '16px', fontWeight: '600',
-                                            textDecoration: bill.status === 'paid' ? 'line-through' : 'none'
-                                        }}>
-                                            {bill.name}
+
+                                    {/* Edit Wrapper: Name & Amount */}
+                                    <div
+                                        onClick={() => setEditingBill(bill)}
+                                        style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                    >
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{
+                                                fontSize: '16px', fontWeight: '600',
+                                                textDecoration: bill.status === 'paid' ? 'line-through' : 'none'
+                                            }}>
+                                                {bill.name}
+                                            </div>
+                                            <div style={{ fontSize: '13px', color: '#888' }}>
+                                                Due: {bill.dueDate}
+                                            </div>
                                         </div>
-                                        <div style={{ fontSize: '13px', color: '#888' }}>
-                                            Due: {bill.dueDate}
+                                        <div style={{ fontSize: '16px', fontWeight: 'bold', marginRight: '10px' }}>
+                                            ${bill.amount.toFixed(2)}
                                         </div>
                                     </div>
-                                    <div style={{ fontSize: '16px', fontWeight: 'bold', marginRight: '10px' }}>
-                                        ${bill.amount.toFixed(2)}
-                                    </div>
-                                    <button onClick={() => deleteBill(bill.id)} style={{
-                                        background: 'none', border: 'none', color: '#555', cursor: 'pointer'
+
+                                    {/* Delete Button (Outside Edit Wrapper) */}
+                                    <button onClick={(e) => {
+                                        e.stopPropagation() // Prevent Edit trigger
+                                        deleteBill(bill.id)
+                                    }} style={{
+                                        background: 'none', border: 'none', color: '#555', cursor: 'pointer',
+                                        padding: '5px'
                                     }}>x</button>
                                 </div>
                             ))}
@@ -140,8 +161,24 @@ export default function BudgetView({ onBack }) {
                     title="New Bill"
                     placeholder="Bill Name (e.g. Rent)"
                     showBillOptions={true}
-                    onSave={handleAddBill}
+                    onSave={handleSaveBill}
                     onCancel={() => setShowAddBill(false)}
+                />
+            )}
+
+            {editingBill && (
+                <InputOverlay
+                    title="Edit Bill"
+                    placeholder="Bill Name"
+                    initialValue={editingBill.name}
+                    showBillOptions={true}
+                    initialBillData={{
+                        amount: editingBill.amount,
+                        dueDate: editingBill.dueDate,
+                        recurrenceDay: editingBill.recurrenceDay // Pass Day of Month
+                    }}
+                    onSave={handleSaveBill}
+                    onCancel={() => setEditingBill(null)}
                 />
             )}
 

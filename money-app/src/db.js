@@ -45,6 +45,17 @@ db.version(5).stores({
     budgets: '++id, name, type, scopeId, limit, period, startDate, endDate' // New
 });
 
+// Version 6: Bill Linking
+db.version(6).stores({
+    transactions: '++id, date, merchant, category, account, type, tags, billId', // billId
+    merchants: '++id, name, icon, color',
+    categories: '++id, name, icon, color',
+    accounts: '++id, name, icon, color',
+    tags: '++id, name, type, startDate, endDate, color',
+    bills: '++id, name, amount, dueDate, recurrence, status, categoryId',
+    budgets: '++id, name, type, scopeId, limit, period, startDate, endDate'
+});
+
 // Seed Function (Idempotent Upsert)
 export async function seedDatabase() {
 

@@ -26,7 +26,7 @@ export default function InputOverlay({
         if (initialTagData?.endDate) setEndDate(initialTagData.endDate)
 
         if (initialBillData?.amount) setBillAmount(initialBillData.amount)
-        if (initialBillData?.dueDate) setBillDate(initialBillData.dueDate)
+        if (initialBillData?.recurrenceDay) setBillDay(initialBillData.recurrenceDay)
 
         // Auto-focus with slight delay for animation
         setTimeout(() => {
