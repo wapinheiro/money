@@ -44,6 +44,7 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
     const [statusMsg, setStatusMsg] = useState('Ready')
     const [contextItems, setContextItems] = useState([])
     const [selectedTags, setSelectedTags] = useState([]) // New State for Tags
+    const [selectedBill, setSelectedBill] = useState(null) // New State for Bill Linking
 
     /* State for Review Nav */
     const [reviewFocus, setReviewFocus] = useState(1) // Default start at 1 (Merchant)
@@ -70,7 +71,18 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                 const createOption = { id: 'NEW', name: '+ Create New', icon: '➕', color: '#888' }
 
                 if (targetType === 'merchant') options = await db.merchants.toArray()
-                else if (targetType === 'category') options = await db.categories.toArray()
+                if (targetType === 'merchant') options = await db.merchants.toArray()
+                else if (targetType === 'category') {
+                    // UNIFIED: Fetch Categories AND Unpaid Bills
+                    const categories = await db.categories.toArray()
+                    let unpaidBills = await db.bills.filter(b => b.status === 'unpaid').toArray()
+                    unpaidBills.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+
+                    // Mark bills to distinguish
+                    unpaidBills = unpaidBills.map(b => ({ ...b, isBill: true, icon: '📄', color: '#666' }))
+
+                    options = [...unpaidBills, ...categories]
+                }
                 else if (targetType === 'account') options = await db.accounts.toArray()
 
                 // Prepend Create New
@@ -177,7 +189,7 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
 
             // TRANSITION TO REVIEW NAV (Default focus: SAVE)
             setMode('review_nav')
-            setReviewFocus(4)
+            setReviewFocus(5) // Index of 'save' in NAV_FIELDS
             setStatusMsg('Review Details')
 
             // AUTO-SWITCH TO TH (KEYPAD/DIRECT EDIT) IF ENABLED
@@ -193,15 +205,29 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
             if (focusedField === 'save') {
                 // SAVE TO DB
                 try {
-                    await db.transactions.add({
+                    // 1. Prepare Transaction Data
+                    const txData = {
                         amount: parseFloat(amount),
                         date: new Date(),
                         status: 'review',
                         merchant: contextItems[0].label,
                         category: contextItems[1].label,
                         account: contextItems[2].label,
-                        tags: selectedTags.map(t => t.id) // Save Tag IDs
-                    })
+                        tags: selectedTags.map(t => t.id), // Save Tag IDs
+                        billId: selectedBill ? selectedBill.id : null // Link Bill
+                    }
+
+                    // 2. Add Transaction
+                    await db.transactions.add(txData)
+
+                    // 3. Update Linked Bill (If any)
+                    if (selectedBill) {
+                        await db.bills.update(selectedBill.id, {
+                            status: 'paid',
+                            amount: parseFloat(amount) // Update to actuals
+                        })
+                    }
+
                     setStatusMsg(`Saved $${amount}!`)
                     setTimeout(() => { if (onClose) onClose() }, 1000)
                 } catch (error) {
@@ -226,7 +252,17 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
             const createOption = { id: 'NEW', name: '+ Create New', icon: '➕', color: '#888' }
 
             if (focusedField === 'merchant') options = await db.merchants.toArray()
-            else if (focusedField === 'category') options = await db.categories.toArray()
+            else if (focusedField === 'category') {
+                // UNIFIED: Fetch Categories AND Unpaid Bills
+                const categories = await db.categories.toArray()
+                let unpaidBills = await db.bills.filter(b => b.status === 'unpaid').toArray()
+                unpaidBills.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+
+                // Mark bills to distinguish
+                unpaidBills = unpaidBills.map(b => ({ ...b, isBill: true, icon: '📄', color: '#666' }))
+
+                options = [...unpaidBills, createOption, ...categories]
+            }
             else if (focusedField === 'account') options = await db.accounts.toArray()
             else if (focusedField === 'tags') {
                 const allTags = await db.tags.toArray()
@@ -241,7 +277,8 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
             }
 
             // Prepend Create New (ONLY IN KEYPAD MODE)
-            if (inputMethod === 'keypad') {
+            // EXCEPTION: Category already handles it manually to place it between Bills and Categories
+            if (inputMethod === 'keypad' && focusedField !== 'category') {
                 options = [createOption, ...options]
             }
 
@@ -252,6 +289,23 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
 
         if (mode === 'edit') {
             if (!editOptions[editIndex]) return // Guard
+
+            // SPECIAL CASE: BILL (Old logic, removal or ignore)
+            // Since we removed 'bill' from NAV_FIELDS, we don't need the specific editTarget === 'bill' block here
+            // BUT we need to handle if 'category' selection IS a bill.
+
+            // CONFIRM SELECTION (Single Select Types)
+            const selectedOption = editOptions[editIndex]
+
+            // Check if user selected a Bill (via Category menu)
+            if (editTarget === 'category' && selectedOption.isBill) {
+                // Link Bill
+                setSelectedBill(selectedOption)
+                setStatusMsg(`Pays Bill: ${selectedOption.name}`)
+            } else if (editTarget === 'category') {
+                // Normal Category - Clear Bill
+                setSelectedBill(null)
+            }
 
             // SPECIAL CASE: TAGS (Multi-Select)
             if (editTarget === 'tags') {
@@ -286,8 +340,7 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                 return
             }
 
-            // CONFIRM SELECTION (Single Select Types)
-            const selectedOption = editOptions[editIndex]
+
 
             // Update Context Items
             const newContext = contextItems.map(item => {
@@ -360,11 +413,25 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
     }
 
     // HELPER: Confirm Selection (Direct Click)
-    const handleOptionClick = (option) => {
+    const handleOptionClick = async (option) => {
         // Handle Create New
         if (option.id === 'NEW') {
             setMode('creation') // Switch to Creation Mode
             return
+        }
+
+        // SPECIAL CASE: BILL (Old legacy block - removed)
+
+        // UNIFIED CATEGORY HANDLING
+        if (editTarget === 'category') {
+            if (option.isBill) {
+                // Link Bill
+                setSelectedBill(option)
+                setStatusMsg(`Pays Bill: ${option.name}`)
+            } else {
+                // Normal Category - Clear Bill
+                setSelectedBill(null)
+            }
         }
 
         const newContext = contextItems.map(item => {
@@ -375,6 +442,7 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
         })
         setContextItems(newContext)
         setMode('review_nav')
+        setReviewFocus(5) // Ensure focus jumps to SAVE, not Tags
         setEditTarget(null)
         setStatusMsg('Updated')
     } // End handleOptionClick
@@ -541,7 +609,17 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                                     const createOption = { id: 'NEW', name: '+ Create New', icon: '➕', color: '#888' }
 
                                     if (item.value === 'merchant') options = await db.merchants.toArray()
-                                    else if (item.value === 'category') options = await db.categories.toArray()
+                                    else if (item.value === 'category') {
+                                        // UNIFIED: Fetch Categories AND Unpaid Bills
+                                        const categories = await db.categories.toArray()
+                                        let unpaidBills = await db.bills.filter(b => b.status === 'unpaid').toArray()
+                                        unpaidBills.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+
+                                        // Mark bills to distinguish
+                                        unpaidBills = unpaidBills.map(b => ({ ...b, isBill: true, icon: '📄', color: '#666' }))
+
+                                        options = [...unpaidBills, createOption, ...categories]
+                                    }
                                     else if (item.value === 'account') options = await db.accounts.toArray()
 
                                     // Simple Dedupe by Name
@@ -553,8 +631,9 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                                     })
 
                                     // Prepend Create New (ONLY IN KEYPAD MODE)
+                                    // EXCEPTION: Category handles it manually
                                     const shouldUseKeypad = inputMethod === 'keypad' || ergoAutoSwitch
-                                    if (shouldUseKeypad) {
+                                    if (shouldUseKeypad && item.value !== 'category') {
                                         options = [createOption, ...options]
                                     }
 
@@ -586,7 +665,10 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                                 </div>
                                 <span style={{ color: '#666' }}> › </span>
                             </div>
+
                         ))}
+
+
 
 
                         {/* TAGS ROW */}
@@ -795,6 +877,22 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                                         }
                                     }
 
+                                    // UNIFIED CATEGORY HEADERS
+                                    if (editTarget === 'category' && opt) {
+                                        // Case 1: First item is a Bill -> "Bills"
+                                        if (i === 0 && opt.isBill) {
+                                            showHeader = true; headerTitle = 'Bills'
+                                        }
+                                        // Case 2: Item is Category, Previous was Bill -> "Budgets"
+                                        else if (!opt.isBill && (prev && prev.isBill)) {
+                                            showHeader = true; headerTitle = 'Budgets'
+                                        }
+                                        // Case 3: First item is Category (No bills) -> "Budgets"
+                                        else if (i === 0 && !opt.isBill) {
+                                            showHeader = true; headerTitle = 'Budgets'
+                                        }
+                                    }
+
                                     return (
                                         <React.Fragment key={i}>
                                             {showHeader && (
@@ -865,15 +963,17 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
             </div>
 
             {/* CREATION OVERLAY (Moved to Root) */}
-            {mode === 'creation' && (
-                <InputOverlay
-                    title={`New ${editTarget}`}
-                    placeholder={`Name for new ${editTarget}...`}
-                    onSave={handleCreateNew}
-                    onCancel={() => setMode('edit')}
-                    showTagOptions={editTarget === 'tags'}
-                />
-            )}
-        </div>
+            {
+                mode === 'creation' && (
+                    <InputOverlay
+                        title={`New ${editTarget}`}
+                        placeholder={`Name for new ${editTarget}...`}
+                        onSave={handleCreateNew}
+                        onCancel={() => setMode('edit')}
+                        showTagOptions={editTarget === 'tags'}
+                    />
+                )
+            }
+        </div >
     )
 }

@@ -129,7 +129,7 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
                 marginBottom: '10px' // reduced for tighter layout
             }}>
                 <div>
-                    <div style={{ fontSize: '10px', color: '#888', marginBottom: '-2px' }}>v1.99f Home Tags</div>
+                    <div style={{ fontSize: '10px', color: '#888', marginBottom: '-2px' }}>v1.99h Home Tags</div>
                     <div style={{ fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>My Money</div>
                 </div>
                 <button

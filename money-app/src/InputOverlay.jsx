@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { db } from './db'
 
 export default function InputOverlay({
     title, placeholder, initialValue = '',
@@ -16,6 +17,9 @@ export default function InputOverlay({
     // Bill Specific State
     const [billAmount, setBillAmount] = useState(initialBillData?.amount || '')
     const [billDay, setBillDay] = useState(initialBillData?.recurrenceDay || 1) // Day 1-31
+    const [isAutoPay, setIsAutoPay] = useState(initialBillData?.isAutoPay || false)
+    const [autoPayAccountId, setAutoPayAccountId] = useState(initialBillData?.autoPayAccountId || '')
+    const [accounts, setAccounts] = useState([])
 
     const inputRef = useRef(null)
 
@@ -26,7 +30,15 @@ export default function InputOverlay({
         if (initialTagData?.endDate) setEndDate(initialTagData.endDate)
 
         if (initialBillData?.amount) setBillAmount(initialBillData.amount)
+        if (initialBillData?.amount) setBillAmount(initialBillData.amount)
         if (initialBillData?.recurrenceDay) setBillDay(initialBillData.recurrenceDay)
+        if (initialBillData?.isAutoPay) setIsAutoPay(initialBillData.isAutoPay)
+        if (initialBillData?.autoPayAccountId) setAutoPayAccountId(initialBillData.autoPayAccountId)
+
+        // Load Accounts
+        if (showBillOptions) {
+            db.accounts.toArray().then(setAccounts)
+        }
 
         // Auto-focus with slight delay for animation
         setTimeout(() => {
@@ -70,7 +82,10 @@ export default function InputOverlay({
                 recurrenceDay: parseInt(billDay),
                 dueDate: dueDateString,
                 recurrence: 'monthly',
-                status: 'unpaid'
+                recurrence: 'monthly',
+                status: 'unpaid',
+                isAutoPay: isAutoPay,
+                autoPayAccountId: isAutoPay ? autoPayAccountId : null
             })
         } else {
             onSave(value)
@@ -191,6 +206,40 @@ export default function InputOverlay({
                                 ))}
                             </select>
                         </div>
+
+
+                        {/* AUTO PAY TOGGLE */}
+                        <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center' }}>
+                            <input
+                                type="checkbox"
+                                checked={isAutoPay}
+                                onChange={e => setIsAutoPay(e.target.checked)}
+                                style={{ width: '20px', height: '20px', marginRight: '10px' }}
+                            />
+                            <span style={{ fontSize: '16px', color: 'var(--text-primary)' }}>Automatic Payment?</span>
+                        </div>
+
+                        {/* ACCOUNT SELECTOR (If AutoPay) */}
+                        {isAutoPay && (
+                            <div style={{ marginTop: '15px' }}>
+                                <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '5px' }}>Payment Account</label>
+                                <select
+                                    value={autoPayAccountId}
+                                    onChange={e => setAutoPayAccountId(parseInt(e.target.value))}
+                                    style={{
+                                        width: '100%', padding: '10px', borderRadius: '8px',
+                                        border: '1px solid rgba(128,128,128,0.3)',
+                                        background: 'var(--bg-app)', color: 'var(--text-primary)',
+                                        fontSize: '16px'
+                                    }}
+                                >
+                                    <option value="">Select Account...</option>
+                                    {accounts.map(acc => (
+                                        <option key={acc.id} value={acc.id}>{acc.icon} {acc.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -207,6 +256,6 @@ export default function InputOverlay({
                     }}>Save</button>
                 </div>
             </div>
-        </div>
+        </div >
     )
 }

@@ -175,7 +175,9 @@ export default function BudgetView({ onBack }) {
                     initialBillData={{
                         amount: editingBill.amount,
                         dueDate: editingBill.dueDate,
-                        recurrenceDay: editingBill.recurrenceDay // Pass Day of Month
+                        recurrenceDay: editingBill.recurrenceDay, // Pass Day of Month
+                        isAutoPay: editingBill.isAutoPay,
+                        autoPayAccountId: editingBill.autoPayAccountId
                     }}
                     onSave={handleSaveBill}
                     onCancel={() => setEditingBill(null)}
