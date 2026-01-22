@@ -313,7 +313,7 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
                 transition: 'transform 0.3s',
                 zIndex: 10
             }}>
-                <button onClick={onOpenCapture} style={{
+                <button onClick={() => onOpenCapture()} style={{
                     width: '70px', height: '70px', borderRadius: '50%',
                     background: 'var(--accent-color)', border: 'none',
                     color: 'white', fontSize: '36px',

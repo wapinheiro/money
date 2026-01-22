@@ -74,18 +74,91 @@ export default function BudgetView({ onBack }) {
             })
             // ACTUALLY: Transaction stores Category NAME. Budget stores ScopeID.
             // We need a map.
-            // Let's optimize: Fetch Category Name for the ID
-            let categoryName = null
-            if (b.scopeId) {
-                const cat = await db.categories.get(b.scopeId)
-                if (cat) categoryName = cat.name
+            // Rollover Logic
+            let totalLimit = b.limit
+            let totalSpent = 0
+
+            if (b.isRollover && b.rolloverStartDate) {
+                // ROLLEOVER CALCULATIONS
+                // 1. Calculate how many full periods have passed since Start Date
+                const rStart = new Date(b.rolloverStartDate)
+                const now = new Date()
+
+                // Diff in time
+                const diffTime = Math.abs(now - rStart)
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+                let periodsElapsed = 1
+                if (b.period === 'weekly') periodsElapsed = Math.ceil(diffDays / 7)
+                if (b.period === 'monthly') periodsElapsed = ((now.getFullYear() - rStart.getFullYear()) * 12) + (now.getMonth() - rStart.getMonth()) + 1
+                if (b.period === 'yearly') periodsElapsed = (now.getFullYear() - rStart.getFullYear()) + 1
+
+                if (periodsElapsed < 1) periodsElapsed = 1
+
+                // 2. Cumulative Limit
+                totalLimit = b.limit * periodsElapsed
+
+                // 3. Cumulative Spent (Query everything since rolloverStartDate)
+                const allTxs = await db.transactions
+                    .where('date')
+                    .aboveOrEqual(rStart.getTime())
+                    .toArray()
+
+                let scopeName = null
+                if (b.type === 'tag' && b.scopeId) {
+                    const tag = await db.tags.get(b.scopeId)
+                    if (tag) scopeName = tag.name
+                } else if (b.scopeId) {
+                    // Default Category
+                    const cat = await db.categories.get(b.scopeId)
+                    if (cat) scopeName = cat.name
+                }
+
+                if (b.type === 'tag') {
+                    totalSpent = allTxs
+                        .filter(tx => scopeName && Array.isArray(tx.tags) && tx.tags.includes(scopeName))
+                        .reduce((sum, tx) => sum + tx.amount, 0)
+                    label = `Rollover Active (${periodsElapsed} periods) - Tag: ${scopeName}`
+                } else {
+                    totalSpent = allTxs
+                        .filter(tx => scopeName && tx.category === scopeName)
+                        .reduce((sum, tx) => sum + tx.amount, 0)
+                    label = `Rollover Active (${periodsElapsed} periods)`
+                }
+
+            } else {
+                // STANDARD PERIOD CALCULATION
+                let scopeName = null
+                if (b.type === 'tag' && b.scopeId) {
+                    const tag = await db.tags.get(b.scopeId)
+                    if (tag) scopeName = tag.name
+                } else if (b.scopeId) {
+                    const cat = await db.categories.get(b.scopeId)
+                    if (cat) scopeName = cat.name
+                }
+
+                if (b.type === 'tag') {
+                    totalSpent = txs
+                        .filter(tx => scopeName && Array.isArray(tx.tags) && tx.tags.includes(scopeName))
+                        .reduce((sum, tx) => sum + tx.amount, 0)
+                } else {
+                    totalSpent = txs
+                        .filter(tx => scopeName && tx.category === scopeName)
+                        .reduce((sum, tx) => sum + tx.amount, 0)
+                }
             }
 
-            const spent = txs
-                .filter(tx => categoryName && tx.category === categoryName)
-                .reduce((sum, tx) => sum + tx.amount, 0)
+            // Final Progress Entry
+            let scopeName = null
+            if (b.type === 'tag' && b.scopeId) {
+                const tag = await db.tags.get(b.scopeId)
+                if (tag) scopeName = tag.name
+            } else if (b.scopeId) {
+                const cat = await db.categories.get(b.scopeId)
+                if (cat) scopeName = cat.name
+            }
 
-            progressMap[b.id] = { spent, total: b.limit, label, categoryName }
+            progressMap[b.id] = { spent: totalSpent, total: totalLimit, label, categoryName: scopeName, notes: b.notes }
         }
         setBudgetProgress(progressMap)
     }
@@ -261,9 +334,9 @@ export default function BudgetView({ onBack }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     {budgets.map(b => {
-                        const prog = budgetProgress[b.id] || { spent: 0, total: 1, label: 'Loading', categoryName: 'Unknown' }
-                        const pct = Math.min(100, (prog.spent / b.limit) * 100)
-                        const isOver = prog.spent > b.limit
+                        const prog = budgetProgress[b.id] || { spent: 0, total: 1, label: 'Loading', categoryName: 'Unknown', notes: '' }
+                        const pct = Math.min(100, (prog.spent / prog.total) * 100)
+                        const isOver = prog.spent > prog.total
 
                         return (
                             <div key={b.id} onClick={() => { setEditingBudget(b); setShowAddBudget(true) }} style={{
@@ -273,8 +346,14 @@ export default function BudgetView({ onBack }) {
                                 <div style={{ fontSize: '14px', fontWeight: '600' }}>{prog.categoryName || b.name}</div>
                                 <div style={{ fontSize: '10px', color: '#888' }}>{prog.label}</div>
 
+                                {prog.notes && (
+                                    <div style={{ fontSize: '10px', color: '#888', fontStyle: 'italic', marginBottom: '2px' }}>
+                                        "{prog.notes}"
+                                    </div>
+                                )}
+
                                 <div style={{ fontSize: '20px', fontWeight: 'bold', color: isOver ? '#FF453A' : 'var(--text-primary)' }}>
-                                    ${prog.spent.toFixed(0)} <span style={{ fontSize: '12px', color: '#888', fontWeight: 'normal' }}>/ {b.limit}</span>
+                                    ${prog.spent.toFixed(0)} <span style={{ fontSize: '12px', color: '#888', fontWeight: 'normal' }}>/ {prog.total}</span>
                                 </div>
 
                                 {/* Progress Bar */}

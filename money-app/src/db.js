@@ -67,6 +67,17 @@ db.version(7).stores({
     budgets: '++id, name, type, scopeId, limit, period, startDate, endDate'
 });
 
+// Version 8: Advanced Budgeting (Sub-categories, Rollover, Notes)
+db.version(8).stores({
+    transactions: '++id, date, merchant, category, account, type, tags, billId',
+    merchants: '++id, name, icon, color',
+    categories: '++id, name, icon, color, parentId', // Added parentId
+    accounts: '++id, name, icon, color',
+    tags: '++id, name, type, startDate, endDate, color',
+    bills: '++id, name, amount, dueDate, recurrence, status, categoryId, isAutoPay, autoPayAccountId',
+    budgets: '++id, name, type, scopeId, limit, period, startDate, endDate, notes, isRollover, rolloverStartDate' // Added notes, rollover vars
+});
+
 // Seed Function (Idempotent Upsert)
 export async function seedDatabase() {
 
