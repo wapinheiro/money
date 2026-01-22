@@ -35,7 +35,7 @@ function getContrastYIQ(hexcolor) {
     return (yiq >= 128) ? 'black' : 'white';
 }
 
-export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultInput = 'wheel' }) {
+export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultInput = 'wheel', initialTransaction = null }) {
     const [amount, setAmount] = useState('0.00')
     const [mode, setMode] = useState('numpad') // 'numpad' | 'context' | 'edit' | 'review_nav' | 'creation'
     // INPUT METHOD: 'wheel' | 'keypad'
@@ -53,6 +53,44 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
     const [editTarget, setEditTarget] = useState(null) // 'merchant', 'category', 'account', 'tags'
     const [editOptions, setEditOptions] = useState([])
     const [editIndex, setEditIndex] = useState(0)
+
+    // EDITTING: Hydrate State
+    useEffect(() => {
+        if (initialTransaction) {
+            setAmount(parseFloat(initialTransaction.amount).toFixed(2))
+
+            async function loadContext() {
+                const merch = await db.merchants.where('name').equals(initialTransaction.merchant).first()
+                const cat = await db.categories.where('name').equals(initialTransaction.category).first()
+                const acc = await db.accounts.where('name').equals(initialTransaction.account).first()
+
+                setContextItems([
+                    { label: initialTransaction.merchant, value: 'merchant', subLabel: 'Merchant', logo: merch?.icon, color: merch?.color, meta: merch },
+                    { label: initialTransaction.category, value: 'category', subLabel: 'Category', logo: cat?.icon, color: cat?.color, meta: cat },
+                    { label: initialTransaction.account, value: 'account', subLabel: 'Account', color: acc?.color, meta: acc }
+                ])
+
+                // Load Tags
+                if (initialTransaction.tags && initialTransaction.tags.length > 0) {
+                    const tags = await db.tags.where('id').anyOf(initialTransaction.tags).toArray()
+                    setSelectedTags(tags)
+                }
+
+                // Load Bill
+                if (initialTransaction.billId) {
+                    const bill = await db.bills.get(initialTransaction.billId)
+                    setSelectedBill(bill)
+                }
+
+                setMode('review_nav')
+                setReviewFocus(5) // Focus Save
+                setStatusMsg('Editing Transaction')
+                // Force Keypad if user prefers, or stick to default
+                if (defaultInput === 'keypad') setInputMethod('keypad')
+            }
+            loadContext()
+        }
+    }, [initialTransaction])
 
     const handleDigit = (item) => {
         // If we receive an object (from new wheel), extract value
@@ -183,9 +221,11 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
         if (mode === 'numpad') {
             if (amount === '0.00') return
 
-            // GENERATE PREDICTION
-            const prediction = await predictContext()
-            setContextItems(prediction)
+            // ONLY GENERATE PREDICTION IF CONTEXT IS EMPTY
+            if (contextItems.length === 0) {
+                const prediction = await predictContext()
+                setContextItems(prediction)
+            }
 
             // TRANSITION TO REVIEW NAV (Default focus: SAVE)
             setMode('review_nav')
@@ -217,8 +257,14 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                         billId: selectedBill ? selectedBill.id : null // Link Bill
                     }
 
-                    // 2. Add Transaction
-                    await db.transactions.add(txData)
+                    // 2. Add or Update Transaction
+                    if (initialTransaction) {
+                        await db.transactions.update(initialTransaction.id, txData)
+                        setStatusMsg(`Updated!`)
+                    } else {
+                        await db.transactions.add(txData)
+                        setStatusMsg(`Saved $${amount}!`)
+                    }
 
                     // 3. Update Linked Bill (If any)
                     if (selectedBill) {
@@ -228,8 +274,13 @@ export default function CaptureView({ onClose, ergoAutoSwitch = false, defaultIn
                         })
                     }
 
-                    setStatusMsg(`Saved $${amount}!`)
-                    setTimeout(() => { if (onClose) onClose() }, 1000)
+                    if (initialTransaction) {
+                        // If editing, maybe short delay?
+                        setTimeout(() => { if (onClose) onClose() }, 500)
+                    } else {
+                        setStatusMsg(`Saved $${amount}!`)
+                        setTimeout(() => { if (onClose) onClose() }, 1000)
+                    }
                 } catch (error) {
                     console.error("Save failed", error)
                 }

@@ -14,6 +14,7 @@ import BudgetView from './BudgetView'
 function App() {
   const [view, setView] = useState('home') // 'home' | 'capture' | 'settings'
   const [theme, setTheme] = useState('daylight')
+  const [editingTx, setEditingTx] = useState(null) // Transaction to Edit
 
   // ERGONOMICS STATE
   const [layout, setLayout] = useState('visual') // 'standard' | 'thumb' | 'visual'
@@ -65,7 +66,10 @@ function App() {
       {/* ROUTER LOGIC */}
       {view === 'home' && (
         <HomeView
-          onOpenCapture={() => setView('capture')}
+          onOpenCapture={(tx = null) => {
+            setEditingTx(tx)
+            setView('capture')
+          }}
           onOpenSettings={() => setView('menu')}
           grouping={homeGrouping}
         />
@@ -105,7 +109,11 @@ function App() {
 
       {view === 'capture' && (
         <CaptureView
-          onClose={() => setView('home')} // Returns to home after save/cancel
+          initialTransaction={editingTx}
+          onClose={() => {
+            setEditingTx(null)
+            setView('home')
+          }}
           ergoAutoSwitch={ergoAutoSwitch}
           defaultInput={defaultInput}
         />

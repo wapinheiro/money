@@ -284,11 +284,14 @@ export default function HomeView({ onOpenCapture, onOpenSettings, grouping = 'ca
                                     background: 'rgba(0,0,0,0.02)'
                                 }}>
                                     {group.transactions.map((tx, i) => (
-                                        <div key={i} style={{
-                                            display: 'flex', justifyContent: 'space-between',
-                                            padding: '10px 0', fontSize: '14px',
-                                            borderBottom: i === group.transactions.length - 1 ? 'none' : '1px solid rgba(128,128,128,0.05)'
-                                        }}>
+                                        <div key={i}
+                                            onClick={() => onOpenCapture(tx)}
+                                            style={{
+                                                display: 'flex', justifyContent: 'space-between',
+                                                padding: '10px 0', fontSize: '14px',
+                                                borderBottom: i === group.transactions.length - 1 ? 'none' : '1px solid rgba(128,128,128,0.05)',
+                                                cursor: 'pointer' // Add cursor pointer
+                                            }}>
                                             <div style={{ color: 'var(--text-secondary)' }}>
                                                 {new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                             </div>
