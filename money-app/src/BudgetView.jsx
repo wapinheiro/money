@@ -9,7 +9,10 @@ export default function BudgetView({ onBack }) {
     // Toggles for UI keying
     const [viewMode, setViewMode] = useState('planning') // 'planning' | 'management'
     const [showAddBill, setShowAddBill] = useState(false)
-    const [editingBill, setEditingBill] = useState(null) // New State for Editing
+    const [showAddBudget, setShowAddBudget] = useState(false) // NEW: Budget Modal
+    const [editingBill, setEditingBill] = useState(null)
+    const [editingBudget, setEditingBudget] = useState(null) // NEW: Edit Budget
+    const [budgetProgress, setBudgetProgress] = useState({}) // IDs -> { spent, total, label }
 
     useEffect(() => {
         loadData()
@@ -22,6 +25,69 @@ export default function BudgetView({ onBack }) {
         allBills.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
         setBills(allBills)
         setBudgets(allBudgets)
+
+        // CALCULATE BUDGET PROGRESS
+        const progressMap = {}
+        const now = new Date()
+
+        for (const b of allBudgets) {
+            // Determine Range
+            let start, end, label
+            if (b.period === 'weekly') {
+                // Start of week (Sunday)
+                const day = now.getDay()
+                start = new Date(now); start.setDate(now.getDate() - day); start.setHours(0, 0, 0, 0)
+                end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999)
+                label = 'This Week'
+            } else if (b.period === 'monthly') {
+                start = new Date(now.getFullYear(), now.getMonth(), 1)
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+                label = 'This Month'
+            } else if (b.period === 'yearly') {
+                start = new Date(now.getFullYear(), 0, 1)
+                end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999)
+                label = 'This Year'
+            } else if (b.period === 'custom' && b.startDate && b.endDate) {
+                start = new Date(b.startDate)
+                end = new Date(b.endDate); end.setHours(23, 59, 59, 999)
+                label = `${b.startDate.slice(5)} to ${b.endDate.slice(5)}`
+            } else {
+                // Fallback
+                start = new Date(0)
+                end = new Date()
+                label = 'Unknown'
+            }
+
+            // Query Transactions
+            // Note: DEXIE doesn't do complex ORs easily, so we filter in JS for now or simple range
+            const txs = await db.transactions
+                .where('date')
+                .between(start.getTime(), end.getTime(), true, true)
+                .toArray()
+
+            // Filter by Category (Scope)
+            const relevantTxs = txs.filter(tx => {
+                if (b.type === 'category') return tx.category === (allCategoriesMap[b.scopeId] || tx.category) // We need ID match or name match? 
+                // Wait, transactions store Category NAME string currently, but budgets store scopeID. 
+                // We need to resolve ID -> Name.
+                return true
+            })
+            // ACTUALLY: Transaction stores Category NAME. Budget stores ScopeID.
+            // We need a map.
+            // Let's optimize: Fetch Category Name for the ID
+            let categoryName = null
+            if (b.scopeId) {
+                const cat = await db.categories.get(b.scopeId)
+                if (cat) categoryName = cat.name
+            }
+
+            const spent = txs
+                .filter(tx => categoryName && tx.category === categoryName)
+                .reduce((sum, tx) => sum + tx.amount, 0)
+
+            progressMap[b.id] = { spent, total: b.limit, label, categoryName }
+        }
+        setBudgetProgress(progressMap)
     }
 
     const handleSaveBill = async (billData) => {
@@ -53,6 +119,24 @@ export default function BudgetView({ onBack }) {
     const deleteBill = async (id) => {
         if (!window.confirm("Delete this bill?")) return
         await db.bills.delete(id)
+        loadData()
+    }
+
+    // BUDGET ACTIONS
+    const handleSaveBudget = async (budgetData) => {
+        if (editingBudget) {
+            await db.budgets.update(editingBudget.id, budgetData)
+            setEditingBudget(null)
+        } else {
+            await db.budgets.add(budgetData)
+            setShowAddBudget(false)
+        }
+        loadData()
+    }
+
+    const deleteBudget = async (id) => {
+        if (!window.confirm("Delete this budget?")) return
+        await db.budgets.delete(id)
         loadData()
     }
 
@@ -165,22 +249,70 @@ export default function BudgetView({ onBack }) {
                     onCancel={() => setShowAddBill(false)}
                 />
             )}
+            {/* BUDGETS SECTION */}
+            <div className="section-budgets" style={{ padding: '15px', borderRadius: '20px', marginTop: '20px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '15px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Budgets</span>
+                    <button onClick={() => setShowAddBudget(true)} style={{
+                        background: 'var(--accent-color)', border: 'none', borderRadius: '8px',
+                        color: 'white', fontWeight: 'bold', padding: '5px 10px', fontSize: '12px'
+                    }}>+ CREATE</button>
+                </div>
 
-            {editingBill && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {budgets.map(b => {
+                        const prog = budgetProgress[b.id] || { spent: 0, total: 1, label: 'Loading', categoryName: 'Unknown' }
+                        const pct = Math.min(100, (prog.spent / b.limit) * 100)
+                        const isOver = prog.spent > b.limit
+
+                        return (
+                            <div key={b.id} onClick={() => { setEditingBudget(b); setShowAddBudget(true) }} style={{
+                                background: 'var(--card-bg)', borderRadius: '16px', padding: '15px',
+                                display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer'
+                            }}>
+                                <div style={{ fontSize: '14px', fontWeight: '600' }}>{prog.categoryName || b.name}</div>
+                                <div style={{ fontSize: '10px', color: '#888' }}>{prog.label}</div>
+
+                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: isOver ? '#FF453A' : 'var(--text-primary)' }}>
+                                    ${prog.spent.toFixed(0)} <span style={{ fontSize: '12px', color: '#888', fontWeight: 'normal' }}>/ {b.limit}</span>
+                                </div>
+
+                                {/* Progress Bar */}
+                                <div style={{ height: '6px', width: '100%', background: '#333', borderRadius: '3px', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%', width: `${pct}%`,
+                                        background: isOver ? '#FF453A' : '#32D74B',
+                                        transition: 'width 0.3s ease'
+                                    }} />
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+
+            {/* MODALS */}
+            {(showAddBill || editingBill) && (
                 <InputOverlay
-                    title="Edit Bill"
-                    placeholder="Bill Name"
-                    initialValue={editingBill.name}
+                    title={editingBill ? "Edit Bill" : "Add Bill"}
+                    placeholder="Bill Name (e.g. Rent)"
+                    initialValue={editingBill?.name || ''}
                     showBillOptions={true}
-                    initialBillData={{
-                        amount: editingBill.amount,
-                        dueDate: editingBill.dueDate,
-                        recurrenceDay: editingBill.recurrenceDay, // Pass Day of Month
-                        isAutoPay: editingBill.isAutoPay,
-                        autoPayAccountId: editingBill.autoPayAccountId
-                    }}
+                    initialBillData={editingBill}
                     onSave={handleSaveBill}
-                    onCancel={() => setEditingBill(null)}
+                    onCancel={() => { setShowAddBill(false); setEditingBill(null) }}
+                />
+            )}
+
+            {(showAddBudget || editingBudget) && (
+                <InputOverlay
+                    title={editingBudget ? "Edit Budget" : "New Budget"}
+                    placeholder="Budget Name"
+                    initialValue={editingBudget?.name || ''}
+                    showBudgetOptions={true}
+                    initialBudgetData={editingBudget}
+                    onSave={handleSaveBudget}
+                    onCancel={() => { setShowAddBudget(false); setEditingBudget(null) }}
                 />
             )}
 

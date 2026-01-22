@@ -5,7 +5,8 @@ export default function InputOverlay({
     title, placeholder, initialValue = '',
     onSave, onCancel,
     showTagOptions = false, initialTagData,
-    showBillOptions = false, initialBillData
+    showBillOptions = false, initialBillData,
+    showBudgetOptions = false, initialBudgetData
 }) {
     const [value, setValue] = useState(initialValue)
 
@@ -20,6 +21,14 @@ export default function InputOverlay({
     const [isAutoPay, setIsAutoPay] = useState(initialBillData?.isAutoPay || false)
     const [autoPayAccountId, setAutoPayAccountId] = useState(initialBillData?.autoPayAccountId || '')
     const [accounts, setAccounts] = useState([])
+
+    // Budget Specific State
+    const [budgetLimit, setBudgetLimit] = useState(initialBudgetData?.limit || '')
+    const [budgetPeriod, setBudgetPeriod] = useState(initialBudgetData?.period || 'monthly')
+    const [budgetCustomStart, setBudgetCustomStart] = useState(initialBudgetData?.startDate || new Date().toISOString().split('T')[0])
+    const [budgetCustomEnd, setBudgetCustomEnd] = useState(initialBudgetData?.endDate || '')
+    const [budgetCategoryId, setBudgetCategoryId] = useState(initialBudgetData?.scopeId || '')
+    const [categories, setCategories] = useState([])
 
     const inputRef = useRef(null)
 
@@ -39,6 +48,9 @@ export default function InputOverlay({
         if (showBillOptions) {
             db.accounts.toArray().then(setAccounts)
         }
+        if (showBudgetOptions) {
+            db.categories.toArray().then(setCategories)
+        }
 
         // Auto-focus with slight delay for animation
         setTimeout(() => {
@@ -48,7 +60,7 @@ export default function InputOverlay({
     }, [initialValue]) // Only reset if initialValue changes (primitive). Ignore stable object changes to avoid loops.
 
     const handleSubmit = () => {
-        if (!value.trim()) return
+        if (!showBudgetOptions && !value.trim()) return
 
         if (showTagOptions) {
             onSave({
@@ -87,6 +99,23 @@ export default function InputOverlay({
                 isAutoPay: isAutoPay,
                 autoPayAccountId: isAutoPay ? autoPayAccountId : null
             })
+        } else if (showBudgetOptions) {
+            // Derived Name from Category if not manually set (though manual input is hidden now)
+            let derivedName = value
+            if (!derivedName && budgetCategoryId) {
+                const cat = categories.find(c => c.id == budgetCategoryId)
+                if (cat) derivedName = cat.name
+            }
+
+            onSave({
+                name: derivedName,
+                limit: parseFloat(budgetLimit || '0'),
+                period: budgetPeriod,
+                scopeId: budgetCategoryId ? parseInt(budgetCategoryId) : null, // Category ID
+                type: 'category', // Defaulting to Category budgets for now
+                startDate: budgetPeriod === 'custom' ? budgetCustomStart : null,
+                endDate: budgetPeriod === 'custom' ? budgetCustomEnd : null
+            })
         } else {
             onSave(value)
         }
@@ -115,20 +144,23 @@ export default function InputOverlay({
                 <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px', color: 'var(--text-primary)' }}>
                     {title}
                 </div>
-                <input
-                    ref={inputRef}
-                    value={value}
-                    onChange={e => setValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={placeholder}
-                    style={{
-                        width: '100%', padding: '15px', borderRadius: '12px',
-                        border: '1px solid rgba(128,128,128,0.2)',
-                        background: 'var(--bg-app)', color: 'var(--text-primary)',
-                        fontSize: '18px', marginBottom: '20px', boxSizing: 'border-box',
-                        outline: 'none'
-                    }}
-                />
+                {/* TITLE INPUT (Hidden for Budgets) */}
+                {!showBudgetOptions && (
+                    <input
+                        ref={inputRef}
+                        value={value}
+                        onChange={e => setValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={placeholder}
+                        style={{
+                            width: '100%', padding: '15px', borderRadius: '12px',
+                            border: '1px solid rgba(128,128,128,0.2)',
+                            background: 'var(--bg-app)', color: 'var(--text-primary)',
+                            fontSize: '18px', marginBottom: '20px', boxSizing: 'border-box',
+                            outline: 'none'
+                        }}
+                    />
+                )}
 
                 {showTagOptions && (
                     <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(128,128,128,0.05)', borderRadius: '12px' }}>
@@ -238,6 +270,82 @@ export default function InputOverlay({
                                         <option key={acc.id} value={acc.id}>{acc.icon} {acc.name}</option>
                                     ))}
                                 </select>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {showBudgetOptions && (
+                    <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(128,128,128,0.05)', borderRadius: '12px' }}>
+
+                        {/* CATEGORY SELECTOR */}
+                        <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '5px' }}>Category</label>
+                        <select
+                            value={budgetCategoryId}
+                            onChange={e => setBudgetCategoryId(e.target.value)}
+                            style={{
+                                width: '100%', padding: '10px', borderRadius: '8px',
+                                marginBottom: '15px',
+                                border: '1px solid rgba(128,128,128,0.3)',
+                                background: 'var(--bg-app)', color: 'var(--text-primary)',
+                                fontSize: '16px'
+                            }}
+                        >
+                            <option value="">Select Category...</option>
+                            {/* Deduplicate Categories by Name */}
+                            {Array.from(new Map(categories.map(c => [c.name, c])).values()).map(c => (
+                                <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                            ))}
+                        </select>
+
+                        {/* LIMIT INPUT */}
+                        <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '5px' }}>Limit Amount</label>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '15px' }}>
+                            <span style={{ fontSize: '20px', marginRight: '10px', color: '#888' }}>$</span>
+                            <input
+                                type="number"
+                                value={budgetLimit}
+                                onChange={e => setBudgetLimit(e.target.value)}
+                                placeholder="0.00"
+                                style={{
+                                    flex: 1, padding: '10px', borderRadius: '8px',
+                                    border: '1px solid rgba(128,128,128,0.3)',
+                                    background: 'var(--bg-app)', color: 'var(--text-primary)',
+                                    fontSize: '18px'
+                                }}
+                            />
+                        </div>
+
+                        {/* PERIOD SELECTOR */}
+                        <label style={{ fontSize: '12px', color: '#888', display: 'block', marginBottom: '5px' }}>Budget Period</label>
+                        <select
+                            value={budgetPeriod}
+                            onChange={e => setBudgetPeriod(e.target.value)}
+                            style={{
+                                width: '100%', padding: '10px', borderRadius: '8px',
+                                marginBottom: '10px',
+                                border: '1px solid rgba(128,128,128,0.3)',
+                                background: 'var(--bg-app)', color: 'var(--text-primary)',
+                                fontSize: '16px'
+                            }}
+                        >
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+
+                        {/* CUSTOM DATES */}
+                        {budgetPeriod === 'custom' && (
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ fontSize: '10px', color: '#888' }}>Start</label>
+                                    <input type="date" value={budgetCustomStart} onChange={e => setBudgetCustomStart(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', background: '#333', border: 'none', color: 'white' }} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ fontSize: '10px', color: '#888' }}>End</label>
+                                    <input type="date" value={budgetCustomEnd} onChange={e => setBudgetCustomEnd(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', background: '#333', border: 'none', color: 'white' }} />
+                                </div>
                             </div>
                         )}
                     </div>
